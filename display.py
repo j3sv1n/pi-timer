@@ -224,26 +224,19 @@ def main():
             else:
                 time_str = get_current_time()
 
-            # Render time text (very large)
+            # Render time text as large as possible within screen margins
+            base_font_size = min(int(SW * 0.22), int(SH * 0.78))
+            font_time = pygame.font.SysFont("dejavusans", base_font_size, bold=True)
             time_surface = font_time.render(time_str, True, display_color)
+
+            if time_surface.get_width() > SW * 0.94:
+                scale = (SW * 0.94) / time_surface.get_width()
+                scaled_size = max(48, int(base_font_size * scale))
+                font_time = pygame.font.SysFont("dejavusans", scaled_size, bold=True)
+                time_surface = font_time.render(time_str, True, display_color)
+
             time_rect = time_surface.get_rect(center=(SW // 2, SH // 2))
             screen.blit(time_surface, time_rect)
-
-            # Render mode indicator and status
-            mode_text = state["mode"].upper()
-            if state["mode"] == "timer" and state["timer_running"]:
-                mode_text += " (running)"
-            elif state["mode"] == "stopwatch" and state["stopwatch_running"]:
-                mode_text += " (running)"
-
-            mode_surface = font_small.render(mode_text, True, (100, 100, 100))
-            screen.blit(mode_surface, (20, 20))
-
-            # Render controls hint at bottom
-            controls_text = "SPACE: toggle | ESC: exit"
-            controls_surface = font_small.render(controls_text, True, (100, 100, 100))
-            controls_rect = controls_surface.get_rect(bottomright=(SW - 20, SH - 20))
-            screen.blit(controls_surface, controls_rect)
 
             pygame.display.flip()
 
