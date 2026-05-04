@@ -20,6 +20,7 @@ from watchdog.events import FileSystemEventHandler
 
 BASE_DIR = Path(__file__).parent
 STATE_FILE = BASE_DIR / "timer_state.json"
+CONFIG_FILE = BASE_DIR / "timer_config.json"
 
 BG_COLOR = (0, 0, 0)
 TEXT_COLOR = (255, 0, 0)  # Red text on black
@@ -50,8 +51,14 @@ def load_state():
     }
 
 
-def write_state(state):
-    STATE_FILE.write_text(json.dumps(state, indent=2))
+def read_config():
+    if CONFIG_FILE.exists():
+        try:
+            data = json.loads(CONFIG_FILE.read_text())
+            return data
+        except Exception:
+            pass
+    return {"login_enabled": True, "clock_format": "24"}
 
 
 def format_time(seconds):
@@ -62,10 +69,16 @@ def format_time(seconds):
 
 
 def get_current_time(blink=True):
-    """Get current time as HH:MM with a blinking colon."""
+    """Get current time as HH:MM or 12hr with a blinking colon."""
+    config = read_config()
     now = datetime.now()
     sep = ':' if blink else ' '
-    return f"{now.hour:02d}{sep}{now.minute:02d}"
+    if config.get("clock_format") == "12":
+        h = now.hour % 12 or 12
+        ampm = "AM" if now.hour < 12 else "PM"
+        return f"{h:02d}{sep}{now.minute:02d} {ampm}"
+    else:
+        return f"{now.hour:02d}{sep}{now.minute:02d}"
 
 
 # ── Filesystem watcher ────────────────────────────────────────────────────────
@@ -170,8 +183,7 @@ def main():
                     if state["stopwatch_seconds"] >= state["stopwatch_limit_seconds"]:
                         if state["stopwatch_limit_action"] == "stop":
                             state["stopwatch_running"] = False
-                        elif state["stopwatch_limit_action"] == "blink":
-                            state["stopwatch_running"] = False
+                        # blink action: keep running, will render with blink
 
             last_update_time = current_time
 
