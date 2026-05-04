@@ -200,14 +200,14 @@ def main():
 
             # Determine if we should blink
             should_blink = False
-            blink_color = False
-            if state["mode"] == "timer" and not state["timer_running"]:
+            
+            if state["mode"] == "timer":
                 if (state["timer_limit_seconds"] > 0 and
                     state["timer_remaining"] <= state["timer_limit_seconds"] and
                     state["timer_limit_action"] == "blink"):
                     should_blink = True
 
-            if state["mode"] == "stopwatch" and not state["stopwatch_running"]:
+            if state["mode"] == "stopwatch":
                 if (state["stopwatch_limit_seconds"] > 0 and
                     state["stopwatch_seconds"] >= state["stopwatch_limit_seconds"] and
                     state["stopwatch_limit_action"] == "blink"):

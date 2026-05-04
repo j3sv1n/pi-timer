@@ -170,7 +170,9 @@ def setup_login():
     
     if request.method == "POST":
         enable_login = request.form.get("enable_login") == "true"
-        write_config({"login_enabled": enable_login})
+        config = read_config()
+        config["login_enabled"] = enable_login
+        write_config(config)
         return redirect(url_for("index"))
     
     return render_template_string(SETUP_LOGIN_HTML)
@@ -494,7 +496,7 @@ def api_admin_reset():
     })
     
     write_users({"owner": None, "users": {}})
-    write_config({"login_enabled": True})
+    write_config({"login_enabled": True, "clock_format": "12"})
     
     session.pop("user_id", None)
     return jsonify({"status": "reset"})
@@ -513,7 +515,7 @@ SETUP_HTML = """
 <title>Pi Timer - Setup</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0d0f14;--surface:#161920;--border:#252830;--accent:#b91c1c;--text:#e8eaf0;--muted:#6b7280;--danger:#ff8888}
+:root{--bg:#0d0f14;--surface:#161920;--border:#252830;--accent:#d14242;--text:#e8eaf0;--muted:#6b7280;--danger:#ff8888}
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;padding:24px}
 .panel{width:min(460px,100%);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
@@ -523,7 +525,7 @@ h1{font-family:'Syne',sans-serif;font-size:1rem;margin:0 0 20px;color:var(--mute
 label{display:block;color:var(--muted);font-size:.82rem;margin:14px 0 6px}
 input{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:10px 12px;font:inherit;outline:none}
 input:focus{border-color:var(--accent)}
-button,.link-btn{display:inline-flex;justify-content:center;align-items:center;margin-top:18px;width:100%;border:0;border-radius:7px;padding:10px 12px;background:var(--accent);color:var(--bg);font-weight:700;font:inherit;text-decoration:none;cursor:pointer}
+button,.link-btn{display:inline-flex;justify-content:center;align-items:center;margin-top:18px;width:100%;border:0;border-radius:7px;padding:10px 12px;background:var(--accent);color:#fff;font-weight:700;font:inherit;text-decoration:none;cursor:pointer}
 .secondary{background:transparent;color:var(--muted);border:1px solid var(--border)}
 .msg{margin:0 0 12px;color:var(--danger);font-size:.88rem}
 .hint{color:var(--muted);font-size:.82rem;line-height:1.45;margin-top:14px}
@@ -554,7 +556,7 @@ SETUP_LOGIN_HTML = """
 <title>Pi Timer - Setup Login</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0d0f14;--surface:#161920;--border:#252830;--accent:#b91c1c;--text:#e8eaf0;--muted:#6b7280;--danger:#ff8888}
+:root{--bg:#0d0f14;--surface:#161920;--border:#252830;--accent:#d14242;--text:#e8eaf0;--muted:#6b7280;--danger:#ff8888}
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;padding:24px}
 .panel{width:min(460px,100%);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
@@ -564,7 +566,7 @@ h1{font-family:'Syne',sans-serif;font-size:1rem;margin:0 0 20px;color:var(--mute
 label{display:block;color:var(--muted);font-size:.82rem;margin:14px 0 6px}
 input[type="checkbox"]{width:18px;height:18px;margin-right:10px}
 .checkbox-group{display:flex;align-items:center;margin:16px 0}
-button,.link-btn{display:inline-flex;justify-content:center;align-items:center;margin-top:18px;width:100%;border:0;border-radius:7px;padding:10px 12px;background:var(--accent);color:var(--bg);font-weight:700;font:inherit;text-decoration:none;cursor:pointer}
+button,.link-btn{display:inline-flex;justify-content:center;align-items:center;margin-top:18px;width:100%;border:0;border-radius:7px;padding:10px 12px;background:var(--accent);color:#fff;font-weight:700;font:inherit;text-decoration:none;cursor:pointer}
 .secondary{background:transparent;color:var(--muted);border:1px solid var(--border)}
 .msg{margin:0 0 12px;color:var(--danger);font-size:.88rem}
 .hint{color:var(--muted);font-size:.82rem;line-height:1.45;margin-top:14px}
@@ -606,7 +608,7 @@ h1{font-family:'Syne',sans-serif;font-size:1rem;margin:0 0 20px;color:var(--mute
 label{display:block;color:var(--muted);font-size:.82rem;margin:14px 0 6px}
 input{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:10px 12px;font:inherit;outline:none}
 input:focus{border-color:var(--accent)}
-button,.link-btn{display:inline-flex;justify-content:center;align-items:center;margin-top:18px;width:100%;border:0;border-radius:7px;padding:10px 12px;background:var(--accent);color:var(--bg);font-weight:700;font:inherit;text-decoration:none;cursor:pointer}
+button,.link-btn{display:inline-flex;justify-content:center;align-items:center;margin-top:18px;width:100%;border:0;border-radius:7px;padding:10px 12px;background:var(--accent);color:#fff;font-weight:700;font:inherit;text-decoration:none;cursor:pointer}
 .secondary{background:transparent;color:var(--muted);border:1px solid var(--border)}
 .msg{margin:0 0 12px;color:var(--danger);font-size:.88rem}
 </style>
@@ -672,7 +674,7 @@ input:focus,select:focus{border-color:var(--accent)}
 <main>
 <h1>Control panel</h1>
 <div class="tabs"><button class="tab-btn active" onclick="switchTab('clock')">Clock</button><button class="tab-btn" onclick="switchTab('timer')">Timer</button><button class="tab-btn" onclick="switchTab('stopwatch')">Stopwatch</button></div>
-<div id="clock" class="tab-content active"><div class="card"><div class="time-display" id="clockDisplay">00:00</div><div class="control-row"><label for="clockFormat">Clock Format</label><select id="clockFormat" onchange="changeClockFormat(this.value)"><option value="24">24 Hour</option><option value="12">12 Hour</option></select></div><p class="info-text">Current time displayed on the fullscreen display</p><button class="send-btn" onclick="sendToDisplay('clock')">Send Clock to Display</button></div></div>
+<div id="clock" class="tab-content active"><div class="card"><div class="time-display" id="clockDisplay">00:00</div><div class="control-row"><label for="clockFormat">Clock Format</label><select id="clockFormat" onchange="changeClockFormat(this.value)"><option value="12">12 Hour</option><option value="24">24 Hour</option></select></div><p class="info-text">Current time displayed on the fullscreen display</p><button class="send-btn" onclick="sendToDisplay('clock')">Send Clock to Display</button></div></div>
 <div id="timer" class="tab-content"><div class="card"><div class="time-display" id="timerDisplay">00:00</div><div class="control-row"><label for="timerHours">Duration</label><div class="time-inputs"><input type="number" id="timerHours" placeholder="HH" min="0" max="99"><input type="number" id="timerMinutes" placeholder="MM" min="0" max="59"><input type="number" id="timerSeconds" placeholder="SS" min="0" max="59"></div></div><div class="button-group"><button type="button" onclick="startTimer()">Start</button><button type="button" class="secondary" onclick="pauseTimer()">Pause</button><button type="button" class="secondary" onclick="stopTimer()">Stop</button></div><button class="send-btn" onclick="sendToDisplay('timer')">Send Timer to Display</button></div></div>
 <div id="stopwatch" class="tab-content"><div class="card"><div class="time-display" id="stopwatchDisplay">00:00</div><div class="control-row"><label for="stopwatchHours">Stopwatch limit</label><div class="time-inputs"><input type="number" id="stopwatchHours" placeholder="HH" min="0" max="99"><input type="number" id="stopwatchMinutes" placeholder="MM" min="0" max="59"><input type="number" id="stopwatchSeconds" placeholder="SS" min="0" max="59"></div><p class="info-text">Set a required stopwatch limit before starting.</p></div><div class="control-row"><label for="stopwatchLimitAction">Limit Action</label><select id="stopwatchLimitAction"><option value="stop">Stop at limit</option><option value="blink">Blink at limit</option></select><p class="info-text">Blink means the display background will flash red when the limit is reached.</p></div><div class="button-group stopwatch-controls"><button type="button" onclick="startStopwatch()">Start</button><button type="button" class="secondary" onclick="pauseStopwatch()">Pause</button><button type="button" class="secondary" onclick="stopStopwatch()">Stop</button><button type="button" class="secondary" onclick="resetStopwatch()">Reset</button></div><button class="send-btn" onclick="sendToDisplay('stopwatch')">Send Stopwatch to Display</button></div></div>
 </main>
@@ -680,7 +682,7 @@ input:focus,select:focus{border-color:var(--accent)}
 const STATE_UPDATE_INTERVAL = 100;
 function switchTab(tab){document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('active'));document.getElementById(tab).classList.add('active');document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');updateDisplay();}
 function formatMinutesSeconds(seconds){const m=Math.floor(seconds/60);const s=Math.floor(seconds%60);return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}
-function formatHourMinute(date, format){const h=date.getHours();const m=String(date.getMinutes()).padStart(2,'0');const colon = Math.floor(Date.now()/500) % 2 === 0 ? ':' : ' ';if(format==='12'){const hh=h%12||12; return `${hh}${colon}${m}`;}else{return `${String(h).padStart(2,'0')}${colon}${m}`;}}
+function formatHourMinute(date, format){const h=date.getHours();const m=String(date.getMinutes()).padStart(2,'0');const colon = Math.floor(Date.now()/500) % 2 === 0 ? ':' : ' ';if(format==='12'){const hh=h%12||12;return `${hh}${colon}${m}`;}else{return `${String(h).padStart(2,'0')}${colon}${m}`;}}
 function updateDisplay(){fetch('/api/state').then(r=>r.json()).then(state=>{const now=new Date();const format=document.getElementById('clockFormat').value;document.getElementById('clockDisplay').textContent=formatHourMinute(now,format);if(state.mode==='timer'){document.getElementById('timerDisplay').textContent=formatMinutesSeconds(state.timer_remaining);}else if(state.mode==='stopwatch'){document.getElementById('stopwatchDisplay').textContent=formatMinutesSeconds(state.stopwatch_seconds);}});} 
 function changeClockFormat(format){updateDisplay();}
 function loadConfig(){fetch('/api/admin/config').then(r=>r.json()).then(config=>{document.getElementById('clockFormat').value=config.clock_format||'12';});}
