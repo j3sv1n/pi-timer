@@ -110,9 +110,6 @@ def main():
     pygame.display.set_caption("Pi Timer")
     clock = pygame.time.Clock()
 
-    # Fonts
-    font_time = pygame.font.SysFont("timesnewroman", base_font_size, bold=False)
-
     # State tracking
     state = load_state()
     last_update_time = time.time()
@@ -215,13 +212,13 @@ def main():
 
             # Render time text as large as possible within screen margins
             base_font_size = min(int(SW * 0.5), int(SH * 0.95))
-            font_time = pygame.font.SysFont("dejavusans", base_font_size, bold=True)
+            font_time = pygame.font.SysFont("timesnewroman", base_font_size, bold=False)
             time_surface = font_time.render(time_str, True, display_color)
 
             if time_surface.get_width() > SW * 0.94:
                 scale = (SW * 0.94) / time_surface.get_width()
                 scaled_size = max(48, int(base_font_size * scale))
-                font_time = pygame.font.SysFont("dejavusans", scaled_size, bold=True)
+                font_time = pygame.font.SysFont("timesnewroman", scaled_size, bold=False)
                 time_surface = font_time.render(time_str, True, display_color)
 
             time_rect = time_surface.get_rect(center=(SW // 2, SH // 2))
