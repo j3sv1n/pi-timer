@@ -651,7 +651,7 @@ input:focus,select:focus{border-color:var(--accent)}
 <div class="tabs"><button class="tab-btn active" onclick="switchTab('clock')">Clock</button><button class="tab-btn" onclick="switchTab('timer')">Timer</button><button class="tab-btn" onclick="switchTab('stopwatch')">Stopwatch</button></div>
 <div id="clock" class="tab-content active"><div class="card"><div class="time-display" id="clockDisplay">00:00</div><div class="control-row"><label for="clockFormat">Clock Format</label><select id="clockFormat" onchange="changeClockFormat(this.value)"><option value="12">12 Hour</option><option value="24">24 Hour</option></select></div><p class="info-text">Current time displayed on the fullscreen display</p><button class="send-btn" onclick="sendToDisplay('clock')">Send Clock to Display</button></div></div>
 <div id="timer" class="tab-content"><div class="card"><div class="time-display" id="timerDisplay">00:00</div><div class="control-row"><label for="timerHours">Duration</label><div class="time-inputs"><input type="number" id="timerHours" placeholder="HH" min="0" max="99"><input type="number" id="timerMinutes" placeholder="MM" min="0" max="59"><input type="number" id="timerSeconds" placeholder="SS" min="0" max="59"></div></div><div class="button-group"><button type="button" id="btnTimerStart" onclick="startTimer()">Start</button><button type="button" id="btnTimerPause" class="secondary" onclick="pauseTimer()">Pause</button><button type="button" class="secondary" onclick="stopTimer()">Reset</button></div><button class="send-btn" onclick="sendToDisplay('timer')">Send Timer to Display</button></div></div>
-<div id="stopwatch" class="tab-content"><div class="card"><div class="time-display" id="stopwatchDisplay">00:00</div><div class="control-row"><label for="stopwatchHours">Stopwatch limit</label><div class="time-inputs"><input type="number" id="stopwatchHours" placeholder="HH" min="0" max="99"><input type="number" id="stopwatchMinutes" placeholder="MM" min="0" max="59"><input type="number" id="stopwatchSeconds" placeholder="SS" min="0" max="59"></div></div><div class="control-row"><label for="stopwatchLimitAction">Limit Action</label><select id="stopwatchLimitAction"><option value="none">No limit</option><option value="stop">Stop at limit</option><option value="blink">Blink at limit</option></select><p class="info-text">If 'No limit' is selected, limits are ignored and the stopwatch runs forever.</p></div><div class="button-group"><button type="button" id="btnStopwatchStart" onclick="startStopwatch()">Start</button><button type="button" id="btnStopwatchPause" class="secondary" onclick="pauseStopwatch()">Pause</button><button type="button" class="secondary" onclick="stopStopwatch()">Reset</button></div><button class="send-btn" onclick="sendToDisplay('stopwatch')">Send Stopwatch to Display</button></div></div>
+<div id="stopwatch" class="tab-content"><div class="card"><div class="time-display" id="stopwatchDisplay">00:00</div><div class="control-row"><label for="stopwatchHours">Stopwatch limit (OPTIONAL)</label><div class="time-inputs"><input type="number" id="stopwatchHours" placeholder="HH" min="0" max="99"><input type="number" id="stopwatchMinutes" placeholder="MM" min="0" max="59"><input type="number" id="stopwatchSeconds" placeholder="SS" min="0" max="59"></div><p class="info-text">Leave blank to run with no limit.</p></div><div class="control-row"><label for="stopwatchLimitAction">Limit Action</label><select id="stopwatchLimitAction"><option value="stop">Stop at limit</option><option value="blink">Blink at limit</option></select><p class="info-text">Blink means the display background will flash red when the limit is reached.</p></div><div class="button-group"><button type="button" id="btnStopwatchStart" onclick="startStopwatch()">Start</button><button type="button" id="btnStopwatchPause" class="secondary" onclick="pauseStopwatch()">Pause</button><button type="button" class="secondary" onclick="stopStopwatch()">Reset</button></div><button class="send-btn" onclick="sendToDisplay('stopwatch')">Send Stopwatch to Display</button></div></div>
 </main>
 <script>
 const STATE_UPDATE_INTERVAL = 100;
@@ -674,7 +674,8 @@ function updateDisplay(){
             btnTPause.onclick = pauseTimer;
         } else {
             btnTStart.disabled = false;
-            if(state.timer_remaining > 0 && state.timer_remaining < state.timer_seconds){
+            // Use timer_id to determine if it is actively paused vs stopped/cleared
+            if(state.timer_id !== 0){
                 btnTPause.textContent = "Resume";
                 btnTPause.onclick = resumeTimer;
             } else {
@@ -693,7 +694,8 @@ function updateDisplay(){
             btnSPause.onclick = pauseStopwatch;
         } else {
             btnSStart.disabled = false;
-            if(state.stopwatch_seconds > 0){
+            // Use stopwatch_id to determine if it is actively paused vs stopped/cleared
+            if(state.stopwatch_id !== 0){
                 btnSPause.textContent = "Resume";
                 btnSPause.onclick = resumeStopwatch;
             } else {
@@ -711,7 +713,7 @@ function pauseTimer(){fetch('/api/timer/pause',{method:'POST'}).then(()=>updateD
 function resumeTimer(){fetch('/api/timer/resume',{method:'POST'}).then(()=>updateDisplay());}
 function stopTimer(){fetch('/api/timer/stop',{method:'POST'}).then(()=>updateDisplay());}
 function getStopwatchLimit(){const h=parseInt(document.getElementById('stopwatchHours').value)||0;const m=parseInt(document.getElementById('stopwatchMinutes').value)||0;const s=parseInt(document.getElementById('stopwatchSeconds').value)||0;return h*3600+m*60+s;}
-function startStopwatch(){const limit=getStopwatchLimit();const action=document.getElementById('stopwatchLimitAction').value;if(action!=='none' && limit<=0){alert('Set a stopwatch limit before starting, or select "No limit".');return;}fetch('/api/stopwatch/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit_seconds:limit,limit_action:action,set_mode:false})}).then(()=>updateDisplay());}
+function startStopwatch(){const limit=getStopwatchLimit();const action=document.getElementById('stopwatchLimitAction').value;fetch('/api/stopwatch/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit_seconds:limit,limit_action:action,set_mode:false})}).then(()=>updateDisplay());}
 function pauseStopwatch(){fetch('/api/stopwatch/pause',{method:'POST'}).then(()=>updateDisplay());}
 function resumeStopwatch(){fetch('/api/stopwatch/resume',{method:'POST'}).then(()=>updateDisplay());}
 function stopStopwatch(){fetch('/api/stopwatch/stop',{method:'POST'}).then(()=>updateDisplay());}
