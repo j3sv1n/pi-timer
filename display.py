@@ -170,7 +170,8 @@ def main():
                     if state["stopwatch_seconds"] >= state["stopwatch_limit_seconds"]:
                         if state["stopwatch_limit_action"] == "stop":
                             state["stopwatch_running"] = False
-                        # blink action: just set flag, will render with blink
+                        elif state["stopwatch_limit_action"] == "blink":
+                            state["stopwatch_running"] = False
 
             last_update_time = current_time
 

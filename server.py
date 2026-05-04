@@ -346,6 +346,17 @@ def api_timer_stop():
     return jsonify(state)
 
 
+@app.route("/api/timer/send", methods=["POST"])
+def api_timer_send():
+    """Send the current timer state to the display without restarting it."""
+    if not is_authenticated():
+        return jsonify({"error": "Unauthorized"}), 401
+    state = read_state()
+    state["mode"] = "timer"
+    write_state(state)
+    return jsonify(state)
+
+
 @app.route("/api/stopwatch/start", methods=["POST"])
 def api_stopwatch_start():
     """Start the stopwatch."""
@@ -400,6 +411,31 @@ def api_stopwatch_stop():
     state["mode"] = "clock"
     state["stopwatch_running"] = False
     state["stopwatch_seconds"] = 0
+    write_state(state)
+    return jsonify(state)
+
+
+@app.route("/api/stopwatch/reset", methods=["POST"])
+def api_stopwatch_reset():
+    """Reset the stopwatch to zero while keeping stopwatch mode active."""
+    if not is_authenticated():
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    state = read_state()
+    state["mode"] = "stopwatch"
+    state["stopwatch_running"] = False
+    state["stopwatch_seconds"] = 0
+    write_state(state)
+    return jsonify(state)
+
+
+@app.route("/api/stopwatch/send", methods=["POST"])
+def api_stopwatch_send():
+    """Send the current stopwatch state to the display without restarting it."""
+    if not is_authenticated():
+        return jsonify({"error": "Unauthorized"}), 401
+    state = read_state()
+    state["mode"] = "stopwatch"
     write_state(state)
     return jsonify(state)
 
@@ -572,7 +608,7 @@ LOGIN_HTML = """
 <title>Pi Timer - Login</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0d0f14;--surface:#161920;--border:#252830;--accent:#ff0000;--text:#e8eaf0;--muted:#6b7280;--danger:#ff8888}
+:root{--bg:#0d0f14;--surface:#161920;--border:#252830;--accent:#d14242;--text:#e8eaf0;--muted:#6b7280;--danger:#ff8888}
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;padding:24px}
 .panel{width:min(460px,100%);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
@@ -635,11 +671,12 @@ input,select{width:100%;border-radius:10px;border:1px solid var(--border);backgr
 input:focus,select:focus{border-color:var(--accent)}
 .time-inputs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .button-group{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px}
+.button-group.stopwatch-controls{grid-template-columns:repeat(4,minmax(0,1fr))}
 .button-group button{border:1px solid var(--border);border-radius:10px;padding:14px 16px;font:inherit;font-weight:700;cursor:pointer;background:var(--accent);color:#fff}
 .button-group button.secondary{background:transparent;color:var(--text);border-color:var(--border)}
 .button-group button.secondary:hover{background:#17171b}
 .info-text{color:var(--muted);font-size:.82rem;line-height:1.6;margin-top:10px}
-.send-btn{margin-top:16px;padding:12px 16px;background:var(--accent);color:#fff;border:0;border-radius:10px;font-weight:700;cursor:pointer}
+.send-btn{display:block;width:100%;margin-top:16px;padding:12px 16px;background:var(--accent);color:#fff;border:0;border-radius:10px;font-weight:700;cursor:pointer}
 </style>
 </head>
 <body>
@@ -649,15 +686,15 @@ input:focus,select:focus{border-color:var(--accent)}
 <div class="tabs"><button class="tab-btn active" onclick="switchTab('clock')">Clock</button><button class="tab-btn" onclick="switchTab('timer')">Timer</button><button class="tab-btn" onclick="switchTab('stopwatch')">Stopwatch</button></div>
 <div id="clock" class="tab-content active"><div class="card"><div class="time-display" id="clockDisplay">00:00</div><p class="info-text">Current time displayed on the fullscreen display</p><button class="send-btn" onclick="sendToDisplay('clock')">Send Clock to Display</button></div></div>
 <div id="timer" class="tab-content"><div class="card"><div class="time-display" id="timerDisplay">00:00</div><div class="control-row"><label for="timerHours">Duration</label><div class="time-inputs"><input type="number" id="timerHours" placeholder="HH" min="0" max="99"><input type="number" id="timerMinutes" placeholder="MM" min="0" max="59"><input type="number" id="timerSeconds" placeholder="SS" min="0" max="59"></div></div><div class="button-group"><button type="button" onclick="startTimer()">Start</button><button type="button" class="secondary" onclick="pauseTimer()">Pause</button><button type="button" class="secondary" onclick="stopTimer()">Stop</button></div><button class="send-btn" onclick="sendToDisplay('timer')">Send Timer to Display</button></div></div>
-<div id="stopwatch" class="tab-content"><div class="card"><div class="time-display" id="stopwatchDisplay">00:00</div><div class="control-row"><label for="stopwatchHours">Stopwatch limit</label><div class="time-inputs"><input type="number" id="stopwatchHours" placeholder="HH" min="0" max="99"><input type="number" id="stopwatchMinutes" placeholder="MM" min="0" max="59"><input type="number" id="stopwatchSeconds" placeholder="SS" min="0" max="59"></div><p class="info-text">Set a required stopwatch limit before starting.</p></div><div class="control-row"><label for="stopwatchLimitAction">Limit Action</label><select id="stopwatchLimitAction"><option value="stop">Stop at limit</option><option value="blink">Blink at limit</option></select><p class="info-text">Blink means the display background will flash red when the limit is reached.</p></div><div class="button-group"><button type="button" onclick="startStopwatch()">Start</button><button type="button" class="secondary" onclick="pauseStopwatch()">Pause</button><button type="button" class="secondary" onclick="stopStopwatch()">Stop</button></div><button class="send-btn" onclick="sendToDisplay('stopwatch')">Send Stopwatch to Display</button></div></div>
+<div id="stopwatch" class="tab-content"><div class="card"><div class="time-display" id="stopwatchDisplay">00:00</div><div class="control-row"><label for="stopwatchHours">Stopwatch limit</label><div class="time-inputs"><input type="number" id="stopwatchHours" placeholder="HH" min="0" max="99"><input type="number" id="stopwatchMinutes" placeholder="MM" min="0" max="59"><input type="number" id="stopwatchSeconds" placeholder="SS" min="0" max="59"></div><p class="info-text">Set a required stopwatch limit before starting.</p></div><div class="control-row"><label for="stopwatchLimitAction">Limit Action</label><select id="stopwatchLimitAction"><option value="stop">Stop at limit</option><option value="blink">Blink at limit</option></select><p class="info-text">Blink means the display background will flash red when the limit is reached.</p></div><div class="button-group stopwatch-controls"><button type="button" onclick="startStopwatch()">Start</button><button type="button" class="secondary" onclick="pauseStopwatch()">Pause</button><button type="button" class="secondary" onclick="stopStopwatch()">Stop</button><button type="button" class="secondary" onclick="resetStopwatch()">Reset</button></div><button class="send-btn" onclick="sendToDisplay('stopwatch')">Send Stopwatch to Display</button></div></div>
 </main>
 <script>
 const STATE_UPDATE_INTERVAL = 100;
-function switchTab(tab){document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('active'));document.getElementById(tab).classList.add('active');document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');if(tab==='clock'){fetch('/api/clock').then(()=>updateDisplay());}else{updateDisplay();}}
+function switchTab(tab){document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('active'));document.getElementById(tab).classList.add('active');document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');updateDisplay();}
 function formatMinutesSeconds(seconds){const m=Math.floor(seconds/60);const s=Math.floor(seconds%60);return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}
 function formatHourMinute(date){const h=String(date.getHours()).padStart(2,'0');const m=String(date.getMinutes()).padStart(2,'0');const colon = Math.floor(Date.now()/500) % 2 === 0 ? ':' : ' ';return `${h}${colon}${m}`;}
-function updateDisplay(){fetch('/api/state').then(r=>r.json()).then(state=>{if(state.mode==='clock'){fetch('/api/clock').then(()=>{const now=new Date();document.getElementById('clockDisplay').textContent=formatHourMinute(now);});}else if(state.mode==='timer'){document.getElementById('timerDisplay').textContent=formatMinutesSeconds(state.timer_remaining);}else if(state.mode==='stopwatch'){document.getElementById('stopwatchDisplay').textContent=formatMinutesSeconds(state.stopwatch_seconds);}});} 
-function sendToDisplay(mode){if(mode==='clock'){fetch('/api/clock',{method:'GET'}).then(()=>updateDisplay());}else if(mode==='timer'){startTimer();}else if(mode==='stopwatch'){startStopwatch();}}
+function updateDisplay(){fetch('/api/state').then(r=>r.json()).then(state=>{const now=new Date();document.getElementById('clockDisplay').textContent=formatHourMinute(now);if(state.mode==='timer'){document.getElementById('timerDisplay').textContent=formatMinutesSeconds(state.timer_remaining);}else if(state.mode==='stopwatch'){document.getElementById('stopwatchDisplay').textContent=formatMinutesSeconds(state.stopwatch_seconds);}});} 
+function sendToDisplay(mode){if(mode==='clock'){fetch('/api/clock',{method:'GET'}).then(()=>updateDisplay());}else if(mode==='timer'){fetch('/api/timer/send',{method:'POST'}).then(()=>updateDisplay());}else if(mode==='stopwatch'){fetch('/api/stopwatch/send',{method:'POST'}).then(()=>updateDisplay());}}
 function startTimer(){const h=parseInt(document.getElementById('timerHours').value)||0;const m=parseInt(document.getElementById('timerMinutes').value)||0;const s=parseInt(document.getElementById('timerSeconds').value)||0;const duration=h*3600+m*60+s;if(duration<=0){alert('Set a timer duration before starting.');return;}fetch('/api/timer/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({duration:duration,limit_seconds:0,limit_action:'stop'})}).then(()=>updateDisplay());}
 function pauseTimer(){fetch('/api/timer/pause',{method:'POST'}).then(()=>updateDisplay());}
 function stopTimer(){fetch('/api/timer/stop',{method:'POST'}).then(()=>updateDisplay());}
@@ -665,6 +702,7 @@ function getStopwatchLimit(){const h=parseInt(document.getElementById('stopwatch
 function startStopwatch(){const limit=getStopwatchLimit();const action=document.getElementById('stopwatchLimitAction').value;if(limit<=0){alert('Set a stopwatch limit before starting.');return;}fetch('/api/stopwatch/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit_seconds:limit,limit_action:action})}).then(()=>updateDisplay());}
 function pauseStopwatch(){fetch('/api/stopwatch/pause',{method:'POST'}).then(()=>updateDisplay());}
 function stopStopwatch(){fetch('/api/stopwatch/stop',{method:'POST'}).then(()=>updateDisplay());}
+function resetStopwatch(){fetch('/api/stopwatch/reset',{method:'POST'}).then(()=>updateDisplay());}
 setInterval(updateDisplay,STATE_UPDATE_INTERVAL);updateDisplay();
 </script>
 </body>
