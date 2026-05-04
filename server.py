@@ -718,7 +718,19 @@ SETTINGS_HTML = """
             <h1>Settings</h1>
             <a href="/" class="secondary">Back to Timer</a>
         </header>
-        
+    
+        <div class="control-group">
+            <h2>Access Control</h2>
+            <div class="control-row">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="loginEnabled">
+                    <label for="loginEnabled">Require password for access</label>
+                </div>
+                <p class="info">When disabled, anyone on your network can access and control the timer without a password.</p>
+            </div>
+            <button onclick="saveLoginSetting()">Save Settings</button>
+        </div>
+
         <div class="control-group">
             <h2>Change Password</h2>
             <div class="control-row">
@@ -734,18 +746,6 @@ SETTINGS_HTML = """
                 <input type="password" id="confirmPassword">
             </div>
             <button style="margin-top: 10px;" onclick="changePassword()">Update Password</button>
-        </div>
-    
-        <div class="control-group">
-            <h2>Access Control</h2>
-            <div class="control-row">
-                <div class="checkbox-group">
-                    <input type="checkbox" id="loginEnabled">
-                    <label for="loginEnabled">Require password for access</label>
-                </div>
-                <p class="info">When disabled, anyone on your network can access and control the timer without a password.</p>
-            </div>
-            <button onclick="saveLoginSetting()">Save Settings</button>
         </div>
         
         <div class="control-group danger-zone">
