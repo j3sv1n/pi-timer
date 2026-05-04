@@ -117,6 +117,7 @@ def is_admin():
         return True
     users = read_users()
     user_id = session.get("user_id")
+    # Kept internal checks same to avoid breaking old accounts
     return user_id in users.get("users", {}) and users["users"][user_id].get("is_admin", False)
 
 
@@ -229,8 +230,8 @@ def index():
                                  is_admin=is_admin_user)
 
 
-@app.route("/admin")
-def admin():
+@app.route("/settings")
+def settings():
     users = read_users()
     if users["owner"] is None:
         return redirect(url_for("setup"))
@@ -244,7 +245,7 @@ def admin():
     login_enabled = is_login_enabled()
     is_owner_user = is_owner()
     
-    return render_template_string(ADMIN_HTML,
+    return render_template_string(SETTINGS_HTML,
                                  login_enabled=login_enabled,
                                  is_owner=is_owner_user,
                                  current_user=session.get("user_id"))
@@ -537,11 +538,11 @@ button,.link-btn{display:inline-flex;justify-content:center;align-items:center;m
 <h1>First-time setup</h1>
 {% if error %}<p class="msg">{{ error }}</p>{% endif %}
 <form method="post">
-<label>Owner username</label><input name="username" autocomplete="username" required autofocus>
+<label>Username</label><input name="username" autocomplete="username" required autofocus>
 <label>Password</label><input name="password" type="password" autocomplete="new-password" required minlength="8">
-<button type="submit">Create Owner Account</button>
+<button type="submit">Create Account</button>
 </form>
-<p class="hint">This first account becomes the protected owner account.</p>
+<p class="hint">This account will be used to manage the timer settings.</p>
 </div>
 </body>
 </html>
@@ -646,6 +647,8 @@ header{display:flex;align-items:center;gap:14px;padding:22px 28px;background:var
 a,button{color:var(--accent);text-decoration:none;font:inherit;border:1px solid transparent;border-radius:7px;padding:9px 12px;background:transparent;cursor:pointer}
 button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 button.secondary{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;color:var(--muted);padding:8px;border-radius:10px;transition:all 0.2s;background:transparent;border:1px solid transparent;}
+.icon-btn:hover{color:var(--text);background:#17171b;border-color:var(--border);}
 main{max-width:860px;margin:0 auto;padding:30px 22px}
 h1{font-family:'Syne',sans-serif;font-size:1.1rem;margin:0 0 18px}
 .tabs{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px}
@@ -661,7 +664,6 @@ input,select{width:100%;border-radius:10px;border:1px solid var(--border);backgr
 input:focus,select:focus{border-color:var(--accent)}
 .time-inputs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .button-group{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px}
-.button-group.stopwatch-controls{grid-template-columns:repeat(4,minmax(0,1fr))}
 .button-group button{border:1px solid var(--border);border-radius:10px;padding:14px 16px;font:inherit;font-weight:700;cursor:pointer;background:var(--accent);color:#fff}
 .button-group button.secondary{background:transparent;color:var(--text);border-color:var(--border)}
 .button-group button.secondary:hover{background:#17171b}
@@ -670,13 +672,21 @@ input:focus,select:focus{border-color:var(--accent)}
 </style>
 </head>
 <body>
-<header><div class="logo">Pi <span>Timer</span></div><div class="spacer"></div>{% if login_enabled %}<a href="/admin">Admin</a><form method="post" action="/logout" style="display:inline"><button class="primary" type="submit">Logout</button></form>{% endif %}</header>
+<header>
+  <div class="logo">Pi <span>Timer</span></div>
+  <div class="spacer"></div>
+  {% if login_enabled %}
+  <a href="/settings" class="icon-btn" title="Settings">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+  </a>
+  {% endif %}
+</header>
 <main>
 <h1>Control panel</h1>
 <div class="tabs"><button class="tab-btn active" onclick="switchTab('clock')">Clock</button><button class="tab-btn" onclick="switchTab('timer')">Timer</button><button class="tab-btn" onclick="switchTab('stopwatch')">Stopwatch</button></div>
 <div id="clock" class="tab-content active"><div class="card"><div class="time-display" id="clockDisplay">00:00</div><div class="control-row"><label for="clockFormat">Clock Format</label><select id="clockFormat" onchange="changeClockFormat(this.value)"><option value="12">12 Hour</option><option value="24">24 Hour</option></select></div><p class="info-text">Current time displayed on the fullscreen display</p><button class="send-btn" onclick="sendToDisplay('clock')">Send Clock to Display</button></div></div>
-<div id="timer" class="tab-content"><div class="card"><div class="time-display" id="timerDisplay">00:00</div><div class="control-row"><label for="timerHours">Duration</label><div class="time-inputs"><input type="number" id="timerHours" placeholder="HH" min="0" max="99"><input type="number" id="timerMinutes" placeholder="MM" min="0" max="59"><input type="number" id="timerSeconds" placeholder="SS" min="0" max="59"></div></div><div class="button-group"><button type="button" onclick="startTimer()">Start</button><button type="button" class="secondary" onclick="pauseTimer()">Pause</button><button type="button" class="secondary" onclick="stopTimer()">Stop</button></div><button class="send-btn" onclick="sendToDisplay('timer')">Send Timer to Display</button></div></div>
-<div id="stopwatch" class="tab-content"><div class="card"><div class="time-display" id="stopwatchDisplay">00:00</div><div class="control-row"><label for="stopwatchHours">Stopwatch limit</label><div class="time-inputs"><input type="number" id="stopwatchHours" placeholder="HH" min="0" max="99"><input type="number" id="stopwatchMinutes" placeholder="MM" min="0" max="59"><input type="number" id="stopwatchSeconds" placeholder="SS" min="0" max="59"></div><p class="info-text">Set a required stopwatch limit before starting.</p></div><div class="control-row"><label for="stopwatchLimitAction">Limit Action</label><select id="stopwatchLimitAction"><option value="stop">Stop at limit</option><option value="blink">Blink at limit</option></select><p class="info-text">Blink means the display background will flash red when the limit is reached.</p></div><div class="button-group stopwatch-controls"><button type="button" onclick="startStopwatch()">Start</button><button type="button" class="secondary" onclick="pauseStopwatch()">Pause</button><button type="button" class="secondary" onclick="stopStopwatch()">Stop</button><button type="button" class="secondary" onclick="resetStopwatch()">Reset</button></div><button class="send-btn" onclick="sendToDisplay('stopwatch')">Send Stopwatch to Display</button></div></div>
+<div id="timer" class="tab-content"><div class="card"><div class="time-display" id="timerDisplay">00:00</div><div class="control-row"><label for="timerHours">Duration</label><div class="time-inputs"><input type="number" id="timerHours" placeholder="HH" min="0" max="99"><input type="number" id="timerMinutes" placeholder="MM" min="0" max="59"><input type="number" id="timerSeconds" placeholder="SS" min="0" max="59"></div></div><div class="button-group"><button type="button" onclick="startTimer()">Start</button><button type="button" class="secondary" onclick="pauseTimer()">Pause</button><button type="button" class="secondary" onclick="stopTimer()">Reset</button></div><button class="send-btn" onclick="sendToDisplay('timer')">Send Timer to Display</button></div></div>
+<div id="stopwatch" class="tab-content"><div class="card"><div class="time-display" id="stopwatchDisplay">00:00</div><div class="control-row"><label for="stopwatchHours">Stopwatch limit</label><div class="time-inputs"><input type="number" id="stopwatchHours" placeholder="HH" min="0" max="99"><input type="number" id="stopwatchMinutes" placeholder="MM" min="0" max="59"><input type="number" id="stopwatchSeconds" placeholder="SS" min="0" max="59"></div><p class="info-text">Set a required stopwatch limit before starting.</p></div><div class="control-row"><label for="stopwatchLimitAction">Limit Action</label><select id="stopwatchLimitAction"><option value="stop">Stop at limit</option><option value="blink">Blink at limit</option></select><p class="info-text">Blink means the display background will flash red when the limit is reached.</p></div><div class="button-group"><button type="button" onclick="startStopwatch()">Start</button><button type="button" class="secondary" onclick="pauseStopwatch()">Pause</button><button type="button" class="secondary" onclick="stopStopwatch()">Reset</button></div><button class="send-btn" onclick="sendToDisplay('stopwatch')">Send Stopwatch to Display</button></div></div>
 </main>
 <script>
 const STATE_UPDATE_INTERVAL = 100;
@@ -694,31 +704,32 @@ function getStopwatchLimit(){const h=parseInt(document.getElementById('stopwatch
 function startStopwatch(){const limit=getStopwatchLimit();const action=document.getElementById('stopwatchLimitAction').value;if(limit<=0){alert('Set a stopwatch limit before starting.');return;}fetch('/api/stopwatch/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit_seconds:limit,limit_action:action,set_mode:false})}).then(()=>updateDisplay());}
 function pauseStopwatch(){fetch('/api/stopwatch/pause',{method:'POST'}).then(()=>updateDisplay());}
 function stopStopwatch(){fetch('/api/stopwatch/stop',{method:'POST'}).then(()=>updateDisplay());}
-function resetStopwatch(){fetch('/api/stopwatch/reset',{method:'POST'}).then(()=>updateDisplay());}
 setInterval(updateDisplay,STATE_UPDATE_INTERVAL);loadConfig();updateDisplay();
 </script>
 </body>
 </html>
 """
 
-ADMIN_HTML = """
+SETTINGS_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Pi Timer - Admin</title>
+    <title>Pi Timer - Settings</title>
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
-        :root{--bg:#0d0f14;--surface:#161920;--border:#252830;--accent:#b91c1c;--text:#e8eaf0;--muted:#6b7280;--danger:#ff4d4d}
+        :root{--bg:#0d0f14;--surface:#161920;--border:#252830;--accent:#d14242;--text:#e8eaf0;--muted:#6b7280;--danger:#ff8888}
         *{margin:0;padding:0;box-sizing:border-box}
         body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;padding:24px}
-        header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:14px;margin-bottom:24px}
+        header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
         .logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.45rem}
         .logo span{color:var(--accent)}
         a,button{font:inherit;cursor:pointer;text-decoration:none;border:1px solid transparent;border-radius:10px;padding:10px 14px}
         a{color:var(--accent);background:transparent}
-        button{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+        button{background:var(--accent);color:#fff;border-color:var(--accent)}
+        .secondary{background:transparent;color:var(--text);border:1px solid var(--border)}
+        .secondary:hover{background:#17171b}
         .container{max-width:860px;margin:0 auto;display:grid;gap:20px}
         .control-group{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
         .control-group h2{margin:0 0 18px;font-family:'Syne',sans-serif;font-size:1rem}
@@ -731,17 +742,27 @@ ADMIN_HTML = """
         .info{color:var(--muted);font-size:.92rem;line-height:1.6;margin-top:10px}
         .danger-zone{background:#181212;border:1px solid rgba(255,0,0,.2);border-radius:16px;padding:22px}
         .danger-zone p{margin:0 0 18px;color:var(--muted);font-size:.92rem;line-height:1.7}
-        .danger-zone button{background:#7d1515;color:#fff;border-color:#7d1515}
-        .danger-zone button:hover{background:#a11515}
+        .danger-zone button{background:#b91c1c;color:#fff;border-color:#b91c1c}
+        .danger-zone button:hover{background:#a01818}
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>⚙️ Admin Panel</h1>
-        <a href="/">Back to Timer</a>
-    </div>
-    
     <div class="container">
+        <header>
+            <h1>Settings</h1>
+            <a href="/" class="secondary">Back to Timer</a>
+        </header>
+
+        <div class="control-group">
+            <h2>Account</h2>
+            <div class="control-row">
+                <p class="info">Logged in as: <strong>{{ current_user }}</strong></p>
+            </div>
+            <form method="post" action="/logout" style="margin-top: 10px;">
+                <button type="submit" class="secondary">Logout</button>
+            </form>
+        </div>
+    
         <div class="control-group">
             <h2>Login System</h2>
             <div class="control-row">
@@ -755,12 +776,12 @@ ADMIN_HTML = """
         </div>
         
         {% if is_owner %}
-        <div class="control-group">
+        <div class="control-group danger-zone">
             <h2>Reset App</h2>
-            <p style="margin-bottom: 20px; color: #aaa; font-size: 14px;">
-                This will reset all timers to factory state and remove all user accounts (except owner).
+            <p>
+                This will reset all timers to factory state and remove all user accounts (except the main account).
             </p>
-            <button class="danger" onclick="resetApp()">Reset to Factory State</button>
+            <button onclick="resetApp()">Reset to Factory State</button>
         </div>
         {% endif %}
     </div>
