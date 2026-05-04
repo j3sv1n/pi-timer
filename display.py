@@ -55,16 +55,17 @@ def write_state(state):
 
 
 def format_time(seconds):
-    """Convert seconds to HH:MM format."""
-    h = int(seconds // 3600)
-    m = int((seconds % 3600) // 60)
-    return f"{h:02d}:{m:02d}"
+    """Convert seconds to MM:SS format."""
+    m = int(seconds // 60)
+    s = int(seconds % 60)
+    return f"{m:02d}:{s:02d}"
 
 
-def get_current_time():
-    """Get current time as HH:MM."""
+def get_current_time(blink=True):
+    """Get current time as HH:MM with a blinking colon."""
     now = datetime.now()
-    return f"{now.hour:02d}:{now.minute:02d}"
+    sep = ':' if blink else ' '
+    return f"{now.hour:02d}{sep}{now.minute:02d}"
 
 
 # ── Filesystem watcher ────────────────────────────────────────────────────────
@@ -115,6 +116,8 @@ def main():
     last_update_time = time.time()
     blink_state = True
     blink_timer = 0
+    clock_colon = True
+    clock_blink_timer = 0
     BLINK_INTERVAL = 0.5  # seconds between blinks
 
     def on_state_changed():
@@ -192,6 +195,11 @@ def main():
                 blink_timer = 0
                 blink_state = not blink_state
 
+            clock_blink_timer += dt
+            if clock_blink_timer >= BLINK_INTERVAL:
+                clock_blink_timer = 0
+                clock_colon = not clock_colon
+
             # Render
             if should_blink and not blink_state:
                 screen.fill(BLINK_BG_COLOR)
@@ -202,13 +210,13 @@ def main():
 
             # Display based on mode
             if state["mode"] == "clock":
-                time_str = get_current_time()
+                time_str = get_current_time(clock_colon)
             elif state["mode"] == "timer":
                 time_str = format_time(state["timer_remaining"])
             elif state["mode"] == "stopwatch":
                 time_str = format_time(state["stopwatch_seconds"])
             else:
-                time_str = get_current_time()
+                time_str = get_current_time(clock_colon)
 
             # Render time text as large as possible within screen margins
             base_font_size = min(int(SW * 0.5), int(SH * 0.95))
