@@ -1,22 +1,22 @@
 <h1 style="font-family:'Syne', sans-serif; font-weight:800; color:#fff;">Pi <span style="color:#d14242;">Timer</span></h1>
 
-A web-based timer management system designed to run smoothly on Raspberry Pi devices[cite: 7]. Ideal for presentations, events, or any scenario requiring a highly visible, remotely controlled clock, countdown timer, or stopwatch on a fullscreen monitor.
+A web-based timer management system designed to run smoothly on Raspberry Pi devices. Ideal for presentations, events, or any scenario requiring a highly visible, remotely controlled clock, countdown timer, or stopwatch on a fullscreen monitor.
 
 ## Features
 
-- **Web Interface**: Control the clock, timer, and stopwatch through a clean web UI[cite: 7].
-- **Real-time Display**: Dedicated display application that shows the active timer in fullscreen[cite: 7].
+- **Web Interface**: Control the clock, timer, and stopwatch through a clean web UI.
+- **Real-time Display**: Dedicated display application that shows the active timer in fullscreen.
 - **Custom Limits & Alerts**: Set hard stops or visual blinking alerts when a timer or stopwatch reaches a specific limit.
 - **12/24 Hour Formats**: Easily toggle the standard clock display format.
-- **Optional Authentication**: Secure login system with admin capabilities — or disable it for public access[cite: 7].
-- **Responsive Design**: Works perfectly on desktop and mobile devices for easy remote control[cite: 7].
+- **Optional Authentication**: Secure login system with admin capabilities — or disable it for public access.
+- **Responsive Design**: Works perfectly on desktop and mobile devices for easy remote control.
 
 ## Installation
 
 ### Prerequisites
 
-- Raspberry Pi OS installed on your Pi device[cite: 7]
-- Internet connection for downloading packages[cite: 7]
+- Raspberry Pi OS installed on your Pi device
+- Internet connection for downloading packages
 
 ### Setup
 
@@ -32,11 +32,11 @@ A web-based timer management system designed to run smoothly on Raspberry Pi dev
    ```
 
 The installer will:
-- install required system packages with `apt`[cite: 7] (Python, pip, venv, Flask, pygame, watchdog, sdl2-dev)
-- create `~/pi-timer`[cite: 7]
-- copy `display.py` and `server.py` into that directory[cite: 7]
-- create a Python venv with `--system-site-packages`[cite: 7]
-- install `Flask==2.3.3` and `Werkzeug==3.0.0` in the venv[cite: 7]
+- install required system packages with `apt` (Python, pip, venv, Flask, pygame, watchdog, sdl2-dev)
+- create `~/pi-timer`
+- copy `display.py` and `server.py` into that directory
+- create a Python venv with `--system-site-packages`
+- install `Flask==2.3.3` and `Werkzeug==3.0.0` in the venv
 
 ### Optional autostart
 
@@ -46,8 +46,8 @@ sudo bash enable-autostart.sh
 ```
 
 This creates:
-- A systemd service that starts the web server automatically on system boot[cite: 7]
-- A desktop entry that starts the display app automatically on desktop login (with a 20-second delay)[cite: 7]
+- A systemd service that starts the web server automatically on system boot
+- A desktop entry that starts the display app automatically on desktop login (with a 20-second delay)
 
 If you do not want autostart, simply do not run this script. You can start both services manually anytime:
 ```bash
@@ -73,7 +73,7 @@ Access the web interface at `http://localhost:5001`.
 
 **To enable automatic start on system boot:**
 
-Run `sudo bash enable-autostart.sh` to set up the systemd service. After that, the server will start automatically on boot[cite: 7].
+Run `sudo bash enable-autostart.sh` to set up the systemd service. After that, the server will start automatically on boot.
 
 To check systemd service status:
 ```bash
@@ -100,8 +100,8 @@ The display will automatically connect to the server and show the active mode in
 
 #### First-time setup
 
-1. **Setup**: On first run, create an account and choose whether to enable login[cite: 7].
-2. **Login** (if enabled): Use your username and password to access the system[cite: 7].
+1. **Setup**: On first run, create an account and choose whether to enable login.
+2. **Login** (if enabled): Use your username and password to access the system.
 
 #### Using the dashboard
 
@@ -115,27 +115,27 @@ The dashboard contains three dedicated tabs:
 ### Settings Panel
 
 Access the settings panel by clicking the gear icon in the header (account required if login is enabled) to:
-- **Configure Login**: Enable or disable the login system — toggle between requiring authentication or allowing public access[cite: 7].
-- **Reset App**: Factory reset the application, removing all timer states and user accounts (except the main account)[cite: 7].
+- **Configure Login**: Enable or disable the login system — toggle between requiring authentication or allowing public access.
+- **Reset App**: Factory reset the application, removing all timer states and user accounts (except the main account).
 
 ## Configuration
 
-The application uses several configuration files[cite: 7]:
+The application uses several configuration files:
 
 - `timer_state.json`: Tracks current display state, active mode, and elapsed time IDs.
-- `timer_config.json`: Application settings (login system enabled/disabled, 12/24hr format)[cite: 7].
-- `timer_users.json`: User account data (encrypted)[cite: 7].
-- `timer_secret.key`: Flask session secret[cite: 7].
+- `timer_config.json`: Application settings (login system enabled/disabled, 12/24hr format).
+- `timer_users.json`: User account data (encrypted).
+- `timer_secret.key`: Flask session secret.
 
-All files are created automatically in the project directory[cite: 7].
+All files are created automatically in the project directory.
 
 ### Login System Configuration
 
 On first setup, you'll be prompted to choose whether to enable or disable the login system:
-- **Login Enabled** (default): Users must authenticate with username and password. Settings panel is accessible[cite: 7].
-- **Login Disabled**: Anyone can access the app without authentication. All authentication UI is hidden[cite: 7].
+- **Login Enabled** (default): Users must authenticate with username and password. Settings panel is accessible.
+- **Login Disabled**: Anyone can access the app without authentication. All authentication UI is hidden.
 
-To change this setting anytime, visit the Settings page and toggle the "Login System" checkbox[cite: 7].
+To change this setting anytime, visit the Settings page and toggle the "Login System" checkbox.
 
 ## API Reference
 
