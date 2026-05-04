@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Pi Timer - Fullscreen Display
-Runs on DISPLAY:1 (or fallback to DISPLAY:0 if :1 doesn't exist).
-Shows clock, timer, or stopwatch in fullscreen with keyboard control.
+Runs on DISPLAY:1 (or fallback to DISPLAY:0 if :1 doesn't exist.
+Shows clock, timer, or stopwatch in fullscreen. Control is web-server only.
 """
 
 import sys
@@ -22,9 +22,9 @@ BASE_DIR = Path(__file__).parent
 STATE_FILE = BASE_DIR / "timer_state.json"
 
 BG_COLOR = (0, 0, 0)
-TEXT_COLOR = (255, 68, 68)  # Red text on black
+TEXT_COLOR = (255, 0, 0)  # Red text on black
 TEXT_COLOR_WHITE = (255, 255, 255)
-BLINK_BG_COLOR = (255, 68, 68)  # Red background for blink
+BLINK_BG_COLOR = (255, 0, 0)  # Red background for blink
 FPS = 30
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -55,17 +55,16 @@ def write_state(state):
 
 
 def format_time(seconds):
-    """Convert seconds to HH:MM:SS format."""
+    """Convert seconds to HH:MM format."""
     h = int(seconds // 3600)
     m = int((seconds % 3600) // 60)
-    s = int(seconds % 60)
-    return f"{h:02d}:{m:02d}:{s:02d}"
+    return f"{h:02d}:{m:02d}"
 
 
 def get_current_time():
-    """Get current time as HH:MM:SS."""
+    """Get current time as HH:MM."""
     now = datetime.now()
-    return f"{now.hour:02d}:{now.minute:02d}:{now.second:02d}"
+    return f"{now.hour:02d}:{now.minute:02d}"
 
 
 # ── Filesystem watcher ────────────────────────────────────────────────────────
@@ -146,15 +145,6 @@ def main():
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         running = False
-                    elif event.key == pygame.K_SPACE:
-                        # Toggle play/pause based on current mode
-                        if state["mode"] == "timer":
-                            state["timer_running"] = not state["timer_running"]
-                            write_state(state)
-                        elif state["mode"] == "stopwatch":
-                            state["stopwatch_running"] = not state["stopwatch_running"]
-                            write_state(state)
-
             # Update state based on running timers/stopwatches
             if state["timer_running"]:
                 elapsed = current_time - last_update_time

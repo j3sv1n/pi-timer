@@ -466,751 +466,179 @@ def api_admin_reset():
 
 SETUP_HTML = """
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Pi Timer - Setup</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            background: #050505;
-            color: #f4f4f4;
-            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        }
-        .container {
-            width: min(460px, 100%);
-            background: #101010;
-            border: 1px solid rgba(255, 68, 68, 0.2);
-            border-radius: 20px;
-            box-shadow: 0 28px 80px rgba(0, 0, 0, 0.45);
-            padding: 36px;
-        }
-        h1 {
-            margin-bottom: 6px;
-            font-size: 2rem;
-            letter-spacing: -0.03em;
-        }
-        .subtitle {
-            color: #a8a8a8;
-            margin-bottom: 28px;
-            font-size: 0.95rem;
-        }
-        .error {
-            margin-bottom: 20px;
-            padding: 14px 16px;
-            border-radius: 14px;
-            background: rgba(255, 68, 68, 0.12);
-            border: 1px solid rgba(255, 68, 68, 0.18);
-            color: #ffb3b3;
-            font-size: 0.95rem;
-        }
-        .form-group {
-            margin-bottom: 18px;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 0.88rem;
-            color: #b4b4b4;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-        input[type="text"],
-        input[type="password"] {
-            width: 100%;
-            border-radius: 14px;
-            border: 1px solid #2a2a2a;
-            background: #111;
-            color: #f4f4f4;
-            padding: 14px 16px;
-            font-size: 1rem;
-        }
-        input[type="text"]:focus,
-        input[type="password"]:focus {
-            outline: none;
-            border-color: #ff4444;
-            box-shadow: 0 0 0 4px rgba(255, 68, 68, 0.08);
-        }
-        .checkbox-group {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            margin-bottom: 24px;
-        }
-        input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            accent-color: #ff4444;
-        }
-        .checkbox-group label {
-            font-size: 0.96rem;
-            color: #ddd;
-            cursor: pointer;
-        }
-        button {
-            width: 100%;
-            border: none;
-            border-radius: 14px;
-            padding: 14px 16px;
-            background: #ff4444;
-            color: #070707;
-            font-weight: 700;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: transform 0.18s ease, background 0.18s ease;
-        }
-        button:hover { background: #ff6b6b; transform: translateY(-1px); }
-        button:active { background: #cc3333; }
-    </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Pi Timer - Setup</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d0f14;--surface:#161920;--border:#252830;--accent:#ff0000;--text:#e8eaf0;--muted:#6b7280;--danger:#ff8888}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;padding:24px}
+.panel{width:min(460px,100%);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.45rem;margin-bottom:4px}
+.logo span{color:var(--accent)}
+h1{font-family:'Syne',sans-serif;font-size:1rem;margin:0 0 20px;color:var(--muted);font-weight:600}
+label{display:block;color:var(--muted);font-size:.82rem;margin:14px 0 6px}
+input{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:10px 12px;font:inherit;outline:none}
+input:focus{border-color:var(--accent)}
+button,.link-btn{display:inline-flex;justify-content:center;align-items:center;margin-top:18px;width:100%;border:0;border-radius:7px;padding:10px 12px;background:var(--accent);color:var(--bg);font-weight:700;font:inherit;text-decoration:none;cursor:pointer}
+.secondary{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.msg{margin:0 0 12px;color:var(--danger);font-size:.88rem}
+.hint{color:var(--muted);font-size:.82rem;line-height:1.45;margin-top:14px}
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>Pi Timer</h1>
-        <p class="subtitle">First-time setup</p>
-        
-        {% if error %}
-        <div class="error">{{ error }}</div>
-        {% endif %}
-        
-        <form method="post">
-            <div class="form-group">
-                <label for="username">Owner Username</label>
-                <input type="text" id="username" name="username" placeholder="Choose a username" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" placeholder="Choose a password" required>
-            </div>
-            
-            <div class="checkbox-group">
-                <input type="checkbox" id="enable_login" name="enable_login" value="true" checked>
-                <label for="enable_login">Require login (disable for public access)</label>
-            </div>
-            
-            <button type="submit">Create Owner Account</button>
-        </form>
-    </div>
+<div class="panel">
+<div class="logo">Pi <span>Timer</span></div>
+<h1>First-time setup</h1>
+{% if error %}<p class="msg">{{ error }}</p>{% endif %}
+<form method="post">
+<label>Owner username</label><input name="username" autocomplete="username" required autofocus>
+<label>Password</label><input name="password" type="password" autocomplete="new-password" required minlength="8">
+<label style="display:flex;align-items:center;gap:10px;margin-top:16px;"><input type="checkbox" id="enable_login" name="enable_login" value="true" checked>Require login (disable for public access)</label>
+<button type="submit">Create Owner Account</button>
+</form>
+<p class="hint">This first account becomes the protected owner account.</p>
+</div>
 </body>
 </html>
 """
 
 LOGIN_HTML = """
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Pi Timer - Login</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            background: #050505;
-            color: #f4f4f4;
-            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        }
-        .container {
-            width: min(460px, 100%);
-            background: #101010;
-            border: 1px solid rgba(255, 68, 68, 0.2);
-            border-radius: 20px;
-            box-shadow: 0 28px 80px rgba(0, 0, 0, 0.45);
-            padding: 36px;
-        }
-        h1 {
-            margin-bottom: 6px;
-            font-size: 2rem;
-            letter-spacing: -0.03em;
-        }
-        .subtitle {
-            color: #a8a8a8;
-            margin-bottom: 28px;
-            font-size: 0.95rem;
-        }
-        .error {
-            margin-bottom: 20px;
-            padding: 14px 16px;
-            border-radius: 14px;
-            background: rgba(255, 68, 68, 0.12);
-            border: 1px solid rgba(255, 68, 68, 0.18);
-            color: #ffb3b3;
-            font-size: 0.95rem;
-        }
-        .form-group {
-            margin-bottom: 18px;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 0.88rem;
-            color: #b4b4b4;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-        input[type="text"],
-        input[type="password"] {
-            width: 100%;
-            border-radius: 14px;
-            border: 1px solid #2a2a2a;
-            background: #111;
-            color: #f4f4f4;
-            padding: 14px 16px;
-            font-size: 1rem;
-        }
-        input[type="text"]:focus,
-        input[type="password"]:focus {
-            outline: none;
-            border-color: #ff4444;
-            box-shadow: 0 0 0 4px rgba(255, 68, 68, 0.08);
-        }
-        button {
-            width: 100%;
-            border: none;
-            border-radius: 14px;
-            padding: 14px 16px;
-            background: #ff4444;
-            color: #070707;
-            font-weight: 700;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: transform 0.18s ease, background 0.18s ease;
-        }
-        button:hover { background: #ff6b6b; transform: translateY(-1px); }
-        button:active { background: #cc3333; }
-    </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Pi Timer - Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d0f14;--surface:#161920;--border:#252830;--accent:#ff0000;--text:#e8eaf0;--muted:#6b7280;--danger:#ff8888}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;padding:24px}
+.panel{width:min(460px,100%);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.45rem;margin-bottom:4px}
+.logo span{color:var(--accent)}
+h1{font-family:'Syne',sans-serif;font-size:1rem;margin:0 0 20px;color:var(--muted);font-weight:600}
+label{display:block;color:var(--muted);font-size:.82rem;margin:14px 0 6px}
+input{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:10px 12px;font:inherit;outline:none}
+input:focus{border-color:var(--accent)}
+button,.link-btn{display:inline-flex;justify-content:center;align-items:center;margin-top:18px;width:100%;border:0;border-radius:7px;padding:10px 12px;background:var(--accent);color:var(--bg);font-weight:700;font:inherit;text-decoration:none;cursor:pointer}
+.secondary{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.msg{margin:0 0 12px;color:var(--danger);font-size:.88rem}
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>Pi Timer</h1>
-        <p class="subtitle">Login</p>
-        
-        {% if error %}
-        <div class="error">{{ error }}</div>
-        {% endif %}
-        
-        <form method="post">
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" placeholder="Username" required autofocus>
-            </div>
-            
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" placeholder="Password" required>
-            </div>
-            
-            <button type="submit">Login</button>
-        </form>
-    </div>
+<div class="panel">
+<div class="logo">Pi <span>Timer</span></div>
+<h1>Login</h1>
+{% if error %}<p class="msg">{{ error }}</p>{% endif %}
+<form method="post">
+<label>Username</label><input name="username" autocomplete="username" required autofocus>
+<label>Password</label><input name="password" type="password" autocomplete="current-password" required>
+<button type="submit">Log In</button>
+</form>
+</div>
 </body>
 </html>
 """
 
 DASHBOARD_HTML = """
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Pi Timer</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background: #050505;
-            color: #f4f4f4;
-            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            min-height: 100vh;
-            padding: 24px;
-        }
-        .page {
-            width: min(1080px, 100%);
-            margin: 0 auto;
-        }
-        .header {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 30px;
-        }
-        .brand {
-            font-size: 1.9rem;
-            font-weight: 800;
-            letter-spacing: -0.03em;
-        }
-        .brand span {
-            color: #ff4444;
-        }
-        .nav-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: center;
-        }
-        .nav-actions form,
-        .nav-actions a {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .btn,
-        .tab-btn,
-        .nav-actions a,
-        .nav-actions button {
-            border: 1px solid transparent;
-            border-radius: 14px;
-            background: #111;
-            color: #f4f4f4;
-            padding: 12px 18px;
-            font-size: 0.95rem;
-            cursor: pointer;
-            transition: background 0.2s ease, border-color 0.2s ease, transform 0.18s ease;
-            text-decoration: none;
-        }
-        .btn:hover,
-        .tab-btn:hover,
-        .nav-actions a:hover,
-        .nav-actions button:hover {
-            background: #181818;
-            transform: translateY(-1px);
-        }
-        .btn.primary {
-            background: #ff4444;
-            color: #070707;
-            border-color: rgba(255, 68, 68, 0.4);
-        }
-        .tabs {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 28px;
-        }
-        .tab-btn {
-            background: #111;
-            color: #bbb;
-            border-color: #222;
-        }
-        .tab-btn.active {
-            background: #ff4444;
-            color: #070707;
-            border-color: #ff4444;
-        }
-        .tab-content {
-            display: none;
-        }
-        .tab-content.active {
-            display: block;
-        }
-        .card {
-            background: #101010;
-            border: 1px solid #222;
-            border-radius: 22px;
-            padding: 30px;
-            box-shadow: 0 28px 80px rgba(0, 0, 0, 0.32);
-        }
-        .time-display {
-            width: 100%;
-            min-height: 180px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 24px;
-            background: #080808;
-            border: 1px solid rgba(255, 68, 68, 0.24);
-            color: #ff4444;
-            font-size: clamp(3.5rem, 7vw, 6rem);
-            font-weight: 800;
-            letter-spacing: 0.04em;
-            font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif;
-            text-align: center;
-            margin-bottom: 24px;
-            padding: 30px 24px;
-        }
-        .control-row {
-            margin-bottom: 20px;
-        }
-        .control-row:last-child {
-            margin-bottom: 0;
-        }
-        label {
-            display: block;
-            margin-bottom: 10px;
-            font-size: 0.85rem;
-            color: #a7a7a7;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-        input[type="number"],
-        input[type="text"],
-        select {
-            width: 100%;
-            border-radius: 14px;
-            border: 1px solid #2a2a2a;
-            background: #111;
-            color: #f4f4f4;
-            padding: 14px 16px;
-            font-size: 1rem;
-        }
-        input[type="number"]:focus,
-        input[type="text"]:focus,
-        select:focus {
-            outline: none;
-            border-color: #ff4444;
-            box-shadow: 0 0 0 4px rgba(255, 68, 68, 0.08);
-        }
-        .button-group {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 12px;
-            margin-top: 20px;
-        }
-        .button-group button {
-            padding: 14px 18px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-        }
-        button.secondary {
-            background: #171717;
-            color: #ddd;
-            border-color: #2d2d2d;
-        }
-        button.secondary:hover { background: #222; }
-        .info-text {
-            color: #8e8e8e;
-            font-size: 0.88rem;
-            margin-top: 10px;
-            line-height: 1.5;
-        }
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-top: 12px;
-        }
-        input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            accent-color: #ff4444;
-        }
-        .checkbox-group label {
-            margin: 0;
-            cursor: pointer;
-            font-size: 0.95rem;
-            color: #ccc;
-            text-transform: none;
-            letter-spacing: normal;
-        }
-    </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Pi Timer</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d0f14;--surface:#161920;--border:#252830;--accent:#ff0000;--text:#e8eaf0;--muted:#6b7280;--success:#22c55e}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif}
+header{display:flex;align-items:center;gap:14px;padding:22px 28px;background:var(--surface);border-bottom:1px solid var(--border)}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.35rem}.logo span{color:var(--accent)}
+.spacer{flex:1}
+a,button{color:var(--accent);text-decoration:none;font:inherit;border:1px solid transparent;border-radius:7px;padding:9px 12px;background:transparent;cursor:pointer}
+button.primary{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+button.secondary{background:transparent;color:var(--muted);border:1px solid var(--border)}
+main{max-width:860px;margin:0 auto;padding:30px 22px}
+h1{font-family:'Syne',sans-serif;font-size:1.1rem;margin:0 0 18px}
+.tabs{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px}
+.tab-btn{border:1px solid var(--border);border-radius:10px;padding:12px 16px;background:var(--surface);color:var(--muted);font:inherit;cursor:pointer}
+.tab-btn.active{color:var(--text);border-color:var(--accent);background:#17171b}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:26px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.time-display{width:100%;min-height:180px;display:flex;align-items:center;justify-content:center;border-radius:18px;background:#080808;border:1px solid rgba(255,0,0,.25);color:#ff0000;font-family:'Syne',sans-serif;font-size:clamp(4rem,10vw,8rem);font-weight:800;text-align:center;margin-bottom:24px;padding:30px 24px}
+.control-row{margin-bottom:20px}
+label{display:block;margin-bottom:10px;color:var(--muted);font-size:.82rem;text-transform:uppercase;letter-spacing:.08em}
+input,select{width:100%;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:12px 14px;font:inherit;outline:none}
+input:focus,select:focus{border-color:var(--accent)}
+.button-group{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px}
+.button-group button{border:1px solid var(--border);border-radius:10px;padding:14px 16px;font:inherit;font-weight:700;cursor:pointer;background:var(--accent);color:var(--bg)}
+.button-group button.secondary{background:transparent;color:var(--text);border-color:var(--border)}
+.button-group button.secondary:hover{background:#17171b}
+.info-text{color:var(--muted);font-size:.82rem;line-height:1.6;margin-top:10px}
+</style>
 </head>
 <body>
-    <div class="header">
-        <h1>🕐 Pi Timer</h1>
-        <div>
-            {% if login_enabled %}
-            <a href="/admin">Admin</a>
-            <form method="post" action="/logout" style="display:inline; margin-left: 10px;">
-                <button type="submit" style="padding: 8px 16px; margin: 0; width: auto;">Logout</button>
-            </form>
-            {% endif %}
-        </div>
-    </div>
-    
-    <div class="container">
-        <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('clock')">Clock</button>
-            <button class="tab-btn" onclick="switchTab('timer')">Timer</button>
-            <button class="tab-btn" onclick="switchTab('stopwatch')">Stopwatch</button>
-        </div>
-        
-        <!-- Clock Tab -->
-        <div id="clock" class="tab-content active">
-            <div class="control-group">
-                <div class="time-display" id="clockDisplay">00:00:00</div>
-                <p class="info-text">Current time displayed on fullscreen display</p>
-            </div>
-        </div>
-        
-        <!-- Timer Tab -->
-        <div id="timer" class="tab-content">
-            <div class="control-group">
-                <div class="time-display" id="timerDisplay">00:00:00</div>
-                
-                <div class="control-row">
-                    <label for="timerDuration">Duration (seconds)</label>
-                    <input type="number" id="timerDuration" value="60" min="1">
-                </div>
-                
-                <div class="control-row">
-                    <label for="timerLimit">Limit (optional, 0 = no limit)</label>
-                    <input type="number" id="timerLimit" value="0" min="0">
-                </div>
-                
-                <div class="control-row">
-                    <label for="timerLimitAction">Limit Action</label>
-                    <select id="timerLimitAction">
-                        <option value="stop">Stop at limit</option>
-                        <option value="blink">Blink at limit</option>
-                    </select>
-                    <p class="info-text">Blink = background blinks red with white text</p>
-                </div>
-                
-                <div class="button-group">
-                    <button onclick="startTimer()">Start</button>
-                    <button class="secondary" onclick="pauseTimer()">Pause</button>
-                    <button class="secondary" onclick="stopTimer()">Stop</button>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Stopwatch Tab -->
-        <div id="stopwatch" class="tab-content">
-            <div class="control-group">
-                <div class="time-display" id="stopwatchDisplay">00:00:00</div>
-                
-                <div class="control-row">
-                    <label for="stopwatchLimit">Limit (optional, 0 = no limit)</label>
-                    <input type="number" id="stopwatchLimit" value="0" min="0">
-                    <p class="info-text">Time in seconds. Stopwatch will stop or blink when limit is reached.</p>
-                </div>
-                
-                <div class="control-row">
-                    <label for="stopwatchLimitAction">Limit Action</label>
-                    <select id="stopwatchLimitAction">
-                        <option value="stop">Stop at limit</option>
-                        <option value="blink">Blink at limit</option>
-                    </select>
-                    <p class="info-text">Blink = background blinks red with white text</p>
-                </div>
-                
-                <div class="button-group">
-                    <button onclick="startStopwatch()">Start</button>
-                    <button class="secondary" onclick="pauseStopwatch()">Pause</button>
-                    <button class="secondary" onclick="stopStopwatch()">Stop</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <script>
-        const STATE_UPDATE_INTERVAL = 100;
-        
-        function switchTab(tab) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-            document.getElementById(tab).classList.add('active');
-            document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
-        }
-        
-        function formatTime(seconds) {
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = seconds % 60;
-            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-        }
-        
-        function updateDisplay() {
-            fetch('/api/state')
-                .then(r => r.json())
-                .then(state => {
-                    if (state.mode === 'clock') {
-                        fetch('/api/clock').then(r => r.json()).then(data => {
-                            const now = new Date(data.timestamp * 1000);
-                            const h = String(now.getHours()).padStart(2, '0');
-                            const m = String(now.getMinutes()).padStart(2, '0');
-                            const s = String(now.getSeconds()).padStart(2, '0');
-                            document.getElementById('clockDisplay').textContent = `${h}:${m}:${s}`;
-                        });
-                    } else if (state.mode === 'timer') {
-                        document.getElementById('timerDisplay').textContent = formatTime(state.timer_remaining);
-                    } else if (state.mode === 'stopwatch') {
-                        document.getElementById('stopwatchDisplay').textContent = formatTime(state.stopwatch_seconds);
-                    }
-                });
-        }
-        
-        function startTimer() {
-            const duration = parseInt(document.getElementById('timerDuration').value) || 60;
-            const limit = parseInt(document.getElementById('timerLimit').value) || 0;
-            const action = document.getElementById('timerLimitAction').value;
-            
-            fetch('/api/timer/start', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    duration: duration,
-                    limit_seconds: limit,
-                    limit_action: action
-                })
-            }).then(() => updateDisplay());
-        }
-        
-        function pauseTimer() {
-            fetch('/api/timer/pause', { method: 'POST' }).then(() => updateDisplay());
-        }
-        
-        function stopTimer() {
-            fetch('/api/timer/stop', { method: 'POST' }).then(() => updateDisplay());
-        }
-        
-        function startStopwatch() {
-            const limit = parseInt(document.getElementById('stopwatchLimit').value) || 0;
-            const action = document.getElementById('stopwatchLimitAction').value;
-            
-            fetch('/api/stopwatch/start', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    limit_seconds: limit,
-                    limit_action: action
-                })
-            }).then(() => updateDisplay());
-        }
-        
-        function pauseStopwatch() {
-            fetch('/api/stopwatch/pause', { method: 'POST' }).then(() => updateDisplay());
-        }
-        
-        function stopStopwatch() {
-            fetch('/api/stopwatch/stop', { method: 'POST' }).then(() => updateDisplay());
-        }
-        
-        // Update display every 100ms
-        setInterval(updateDisplay, STATE_UPDATE_INTERVAL);
-        updateDisplay();
-    </script>
+<header><div class="logo">Pi <span>Timer</span></div><div class="spacer"></div>{% if login_enabled %}<a href="/admin">Admin</a><form method="post" action="/logout" style="display:inline"><button class="primary" type="submit">Logout</button></form>{% endif %}</header>
+<main>
+<h1>Control panel</h1>
+<div class="tabs"><button class="tab-btn active" onclick="switchTab('clock')">Clock</button><button class="tab-btn" onclick="switchTab('timer')">Timer</button><button class="tab-btn" onclick="switchTab('stopwatch')">Stopwatch</button></div>
+<div id="clock" class="tab-content active"><div class="card"><div class="time-display" id="clockDisplay">00:00</div><p class="info-text">Current time displayed on the fullscreen display</p></div></div>
+<div id="timer" class="tab-content"><div class="card"><div class="time-display" id="timerDisplay">00:00</div><div class="control-row"><label for="timerDuration">Duration (seconds)</label><input type="number" id="timerDuration" value="60" min="1"></div><div class="control-row"><label for="timerLimit">Limit (optional, 0 = no limit)</label><input type="number" id="timerLimit" value="0" min="0"></div><div class="button-group"><button type="button" onclick="startTimer()">Start</button><button type="button" class="secondary" onclick="pauseTimer()">Pause</button><button type="button" class="secondary" onclick="stopTimer()">Stop</button></div></div></div>
+<div id="stopwatch" class="tab-content"><div class="card"><div class="time-display" id="stopwatchDisplay">00:00</div><div class="control-row"><label for="stopwatchLimit">Limit (optional, 0 = no limit)</label><input type="number" id="stopwatchLimit" value="0" min="0"><p class="info-text">Time in seconds. Stopwatch will stop or blink when limit is reached.</p></div><div class="control-row"><label for="stopwatchLimitAction">Limit Action</label><select id="stopwatchLimitAction"><option value="stop">Stop at limit</option><option value="blink">Blink at limit</option></select><p class="info-text">Blink = background blinks red with white text</p></div><div class="button-group"><button type="button" onclick="startStopwatch()">Start</button><button type="button" class="secondary" onclick="pauseStopwatch()">Pause</button><button type="button" class="secondary" onclick="stopStopwatch()">Stop</button></div></div></div>
+</main>
+<script>
+const STATE_UPDATE_INTERVAL = 100;
+function switchTab(tab){document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('active'));document.getElementById(tab).classList.add('active');document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');if(tab==='clock'){fetch('/api/clock').then(()=>updateDisplay());}else{updateDisplay();}}
+function formatTime(seconds){const h=Math.floor(seconds/3600);const m=Math.floor((seconds%3600)/60);return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;}
+function updateDisplay(){fetch('/api/state').then(r=>r.json()).then(state=>{if(state.mode==='clock'){fetch('/api/clock').then(r=>r.json()).then(data=>{const now=new Date(data.timestamp*1000);const h=String(now.getHours()).padStart(2,'0');const m=String(now.getMinutes()).padStart(2,'0');document.getElementById('clockDisplay').textContent=`${h}:${m}`;});}else if(state.mode==='timer'){document.getElementById('timerDisplay').textContent=formatTime(state.timer_remaining);}else if(state.mode==='stopwatch'){document.getElementById('stopwatchDisplay').textContent=formatTime(state.stopwatch_seconds);}});} 
+function startTimer(){const duration=parseInt(document.getElementById('timerDuration').value)||60;const limit=parseInt(document.getElementById('timerLimit').value)||0;fetch('/api/timer/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({duration:duration,limit_seconds:limit,limit_action:'stop'})}).then(()=>updateDisplay());}
+function pauseTimer(){fetch('/api/timer/pause',{method:'POST'}).then(()=>updateDisplay());}
+function stopTimer(){fetch('/api/timer/stop',{method:'POST'}).then(()=>updateDisplay());}
+function startStopwatch(){const limit=parseInt(document.getElementById('stopwatchLimit').value)||0;const action=document.getElementById('stopwatchLimitAction').value;fetch('/api/stopwatch/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit_seconds:limit,limit_action:action})}).then(()=>updateDisplay());}
+function pauseStopwatch(){fetch('/api/stopwatch/pause',{method:'POST'}).then(()=>updateDisplay());}
+function stopStopwatch(){fetch('/api/stopwatch/stop',{method:'POST'}).then(()=>updateDisplay());}
+setInterval(updateDisplay,STATE_UPDATE_INTERVAL);updateDisplay();
+</script>
 </body>
 </html>
 """
 
 ADMIN_HTML = """
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Pi Timer - Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background: #050505;
-            color: #f4f4f4;
-            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            min-height: 100vh;
-            padding: 24px;
-        }
-        .page {
-            width: min(720px, 100%);
-            margin: 0 auto;
-        }
-        .header {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            gap: 16px;
-            align-items: center;
-            margin-bottom: 30px;
-        }
-        .header h1 {
-            font-size: 1.9rem;
-            letter-spacing: -0.03em;
-        }
-        .header a,
-        .header button {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            border-radius: 14px;
-            border: 1px solid rgba(255, 68, 68, 0.25);
-            padding: 12px 18px;
-            background: #111;
-            color: #f4f4f4;
-            text-decoration: none;
-            font-size: 0.95rem;
-            cursor: pointer;
-            transition: background 0.2s ease, transform 0.18s ease;
-        }
-        .header a:hover,
-        .header button:hover { background: #181818; transform: translateY(-1px); }
-        .container {
-            width: 100%;
-        }
-        .control-group {
-            background: #101010;
-            padding: 30px;
-            border-radius: 22px;
-            margin-bottom: 20px;
-            border: 1px solid #212121;
-            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
-        }
-        .control-group h2 {
-            margin-bottom: 20px;
-            font-size: 1.05rem;
-            letter-spacing: -0.02em;
-        }
-        .control-row {
-            margin-bottom: 20px;
-        }
-        .control-row:last-child { margin-bottom: 0; }
-        label {
-            display: block;
-            margin-bottom: 10px;
-            font-size: 0.85rem;
-            color: #a7a7a7;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-        input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            accent-color: #ff4444;
-        }
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .checkbox-group label {
-            margin: 0;
-            font-size: 0.95rem;
-            color: #ddd;
-            cursor: pointer;
-        }
-        button {
-            width: 100%;
-            border: none;
-            border-radius: 14px;
-            padding: 14px 18px;
-            background: #ff4444;
-            color: #070707;
-            font-weight: 700;
-            font-size: 0.95rem;
-            cursor: pointer;
-            transition: background 0.2s ease, transform 0.18s ease;
-        }
-        button:hover { background: #ff6b6b; transform: translateY(-1px); }
-        button:active { background: #cc3333; }
-        button.danger { background: #cc0000; }
-        button.danger:hover { background: #ff0000; }
-        .info {
-            color: #8d8d8d;
-            font-size: 0.95rem;
-            margin-top: 10px;
-            line-height: 1.6;
-        }
+        :root{--bg:#0d0f14;--surface:#161920;--border:#252830;--accent:#ff0000;--text:#e8eaf0;--muted:#6b7280;--danger:#ff4d4d}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;padding:24px}
+        header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:14px;margin-bottom:24px}
+        .logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.45rem}
+        .logo span{color:var(--accent)}
+        a,button{font:inherit;cursor:pointer;text-decoration:none;border:1px solid transparent;border-radius:10px;padding:10px 14px}
+        a{color:var(--accent);background:transparent}
+        button{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+        .container{max-width:860px;margin:0 auto;display:grid;gap:20px}
+        .control-group{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+        .control-group h2{margin:0 0 18px;font-family:'Syne',sans-serif;font-size:1rem}
+        .control-row{display:grid;gap:14px;margin-bottom:16px}
+        .control-row:last-child{margin-bottom:0}
+        label{display:block;color:var(--text);font-size:.95rem}
+        input[type="checkbox"]{width:18px;height:18px;accent-color:var(--accent)}
+        .checkbox-group{display:flex;align-items:center;gap:10px}
+        .checkbox-group label{color:var(--text);cursor:pointer}
+        .info{color:var(--muted);font-size:.92rem;line-height:1.6;margin-top:10px}
+        .danger-zone{background:#181212;border:1px solid rgba(255,0,0,.2);border-radius:16px;padding:22px}
+        .danger-zone p{margin:0 0 18px;color:var(--muted);font-size:.92rem;line-height:1.7}
+        .danger-zone button{background:#7d1515;color:#fff;border-color:#7d1515}
+        .danger-zone button:hover{background:#a11515}
     </style>
 </head>
 <body>
@@ -1229,7 +657,7 @@ ADMIN_HTML = """
                 </div>
                 <p class="info">When disabled, anyone can access the timer without authentication.</p>
             </div>
-            <button onclick="saveLoginSetting()" style="margin-top: 20px;">Save Settings</button>
+            <button onclick="saveLoginSetting()">Save Settings</button>
         </div>
         
         {% if is_owner %}
