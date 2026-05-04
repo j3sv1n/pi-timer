@@ -13,11 +13,10 @@ from pathlib import Path
 from flask import (Flask, request, jsonify, send_from_directory,
                    render_template_string, abort, session, redirect, url_for)
 from werkzeug.security import generate_password_hash, check_password_hash
-import re
 
 BASE_DIR   = Path(__file__).parent
 STATE_FILE = BASE_DIR / "timer_state.json"
-USERS_FILE = BASE_DIR / "timer_users.json"
+AUTH_FILE  = BASE_DIR / "timer_auth.json"
 SECRET_FILE = BASE_DIR / "timer_secret.key"
 CONFIG_FILE = BASE_DIR / "timer_config.json"
 
@@ -38,8 +37,6 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
 )
-
-USERNAME_RE = re.compile(r"^[A-Za-z0-9_.-]{3,32}$")
 
 
 def read_state():
@@ -68,21 +65,21 @@ def write_state(state):
     STATE_FILE.write_text(json.dumps(state, indent=2))
 
 
-def read_users():
-    if USERS_FILE.exists():
+def read_auth():
+    if AUTH_FILE.exists():
         try:
-            data = json.loads(USERS_FILE.read_text())
-            if "users" in data and "owner" in data:
+            data = json.loads(AUTH_FILE.read_text())
+            if "password_hash" in data:
                 return data
         except Exception:
             pass
-    return {"owner": None, "users": {}}
+    return {"password_hash": None}
 
 
-def write_users(data):
-    USERS_FILE.write_text(json.dumps(data, indent=2))
+def write_auth(data):
+    AUTH_FILE.write_text(json.dumps(data, indent=2))
     try:
-        os.chmod(USERS_FILE, 0o600)
+        os.chmod(AUTH_FILE, 0o600)
     except Exception:
         pass
 
@@ -109,22 +106,7 @@ def is_login_enabled():
 def is_authenticated():
     if not is_login_enabled():
         return True
-    return session.get("user_id") is not None
-
-
-def is_admin():
-    if not is_login_enabled():
-        return True
-    users = read_users()
-    user_id = session.get("user_id")
-    # Kept internal checks same to avoid breaking old accounts
-    return user_id in users.get("users", {}) and users["users"][user_id].get("is_admin", False)
-
-
-def is_owner():
-    if not is_login_enabled():
-        return True
-    return session.get("user_id") == read_users().get("owner")
+    return session.get("authenticated") is True
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -133,28 +115,18 @@ def is_owner():
 
 @app.route("/setup", methods=["GET", "POST"])
 def setup():
-    users = read_users()
-    if users["owner"] is not None:
+    auth = read_auth()
+    if auth["password_hash"] is not None:
         return redirect(url_for("index"))
     
     if request.method == "POST":
-        username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
         
-        if not username or not password:
-            return render_template_string(SETUP_HTML, error="Username and password required.")
-        if len(username) < 3 or len(password) < 3:
-            return render_template_string(SETUP_HTML, error="Username and password must be at least 3 characters.")
-        if not USERNAME_RE.match(username):
-            return render_template_string(SETUP_HTML, error="Invalid username.")
+        if not password or len(password) < 4:
+            return render_template_string(SETUP_HTML, error="Password must be at least 4 characters.")
         
-        users["owner"] = username
-        users["users"][username] = {
-            "password_hash": generate_password_hash(password),
-            "is_admin": True,
-        }
-        write_users(users)
-        session["user_id"] = username
+        write_auth({"password_hash": generate_password_hash(password)})
+        session["authenticated"] = True
         return redirect(url_for("setup_login"))
     
     return render_template_string(SETUP_HTML, error=None)
@@ -162,11 +134,11 @@ def setup():
 
 @app.route("/setup/login", methods=["GET", "POST"])
 def setup_login():
-    users = read_users()
-    if users["owner"] is None:
+    auth = read_auth()
+    if auth["password_hash"] is None:
         return redirect(url_for("setup"))
     
-    if not session.get("user_id"):
+    if not session.get("authenticated"):
         return redirect(url_for("setup"))
     
     if request.method == "POST":
@@ -184,28 +156,25 @@ def login():
     if not is_login_enabled():
         return redirect(url_for("index"))
     
-    if session.get("user_id"):
+    if session.get("authenticated"):
         return redirect(url_for("index"))
     
     if request.method == "POST":
-        username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
-        users = read_users()
+        auth = read_auth()
         
-        if username in users.get("users", {}):
-            user = users["users"][username]
-            if check_password_hash(user["password_hash"], password):
-                session["user_id"] = username
-                return redirect(url_for("index"))
+        if auth["password_hash"] and check_password_hash(auth["password_hash"], password):
+            session["authenticated"] = True
+            return redirect(url_for("index"))
         
-        return render_template_string(LOGIN_HTML, error="Invalid username or password.")
+        return render_template_string(LOGIN_HTML, error="Invalid password.")
     
     return render_template_string(LOGIN_HTML, error=None)
 
 
 @app.route("/logout", methods=["POST"])
 def logout():
-    session.pop("user_id", None)
+    session.pop("authenticated", None)
     return redirect(url_for("login" if is_login_enabled() else "index"))
 
 
@@ -215,40 +184,26 @@ def logout():
 
 @app.route("/")
 def index():
-    users = read_users()
-    if users["owner"] is None:
+    auth = read_auth()
+    if auth["password_hash"] is None:
         return redirect(url_for("setup"))
     
     if not is_authenticated():
         return redirect(url_for("login"))
     
-    login_enabled = is_login_enabled()
-    is_admin_user = is_admin() if login_enabled else True
-    
-    return render_template_string(DASHBOARD_HTML, 
-                                 login_enabled=login_enabled,
-                                 is_admin=is_admin_user)
+    return render_template_string(DASHBOARD_HTML, login_enabled=is_login_enabled())
 
 
 @app.route("/settings")
 def settings():
-    users = read_users()
-    if users["owner"] is None:
+    auth = read_auth()
+    if auth["password_hash"] is None:
         return redirect(url_for("setup"))
     
     if not is_authenticated():
         return redirect(url_for("login"))
     
-    if not is_admin():
-        abort(403)
-    
-    login_enabled = is_login_enabled()
-    is_owner_user = is_owner()
-    
-    return render_template_string(SETTINGS_HTML,
-                                 login_enabled=login_enabled,
-                                 is_owner=is_owner_user,
-                                 current_user=session.get("user_id"))
+    return render_template_string(SETTINGS_HTML)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -443,24 +398,32 @@ def api_clock():
     return jsonify({"timestamp": time.time()})
 
 
-# Admin API Routes
+# Admin/Settings API Routes
 
-@app.route("/api/admin/users", methods=["GET"])
-def api_admin_get_users():
-    if not is_authenticated() or not is_admin():
+@app.route("/api/password/change", methods=["POST"])
+def api_password_change():
+    if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     
-    users = read_users()
-    return jsonify({
-        "owner": users.get("owner"),
-        "users": {uid: {"is_admin": u.get("is_admin", False)} 
-                  for uid, u in users.get("users", {}).items()}
-    })
+    data = request.get_json() or {}
+    old_pw = data.get("old_password", "")
+    new_pw = data.get("new_password", "")
+    
+    auth = read_auth()
+    if not auth["password_hash"] or not check_password_hash(auth["password_hash"], old_pw):
+        return jsonify({"error": "Incorrect old password."}), 400
+        
+    if len(new_pw) < 4:
+        return jsonify({"error": "New password must be at least 4 characters."}), 400
+        
+    auth["password_hash"] = generate_password_hash(new_pw)
+    write_auth(auth)
+    return jsonify({"status": "success"})
 
 
 @app.route("/api/admin/config", methods=["GET", "POST"])
 def api_admin_config():
-    if not is_authenticated() or not is_owner():
+    if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     
     if request.method == "GET":
@@ -478,7 +441,7 @@ def api_admin_config():
 
 @app.route("/api/admin/reset", methods=["POST"])
 def api_admin_reset():
-    if not is_authenticated() or not is_owner():
+    if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     
     write_state({
@@ -496,10 +459,10 @@ def api_admin_reset():
         "stopwatch_id": 0,
     })
     
-    write_users({"owner": None, "users": {}})
+    write_auth({"password_hash": None})
     write_config({"login_enabled": True, "clock_format": "12"})
     
-    session.pop("user_id", None)
+    session.pop("authenticated", None)
     return jsonify({"status": "reset"})
 
 
@@ -526,8 +489,7 @@ h1{font-family:'Syne',sans-serif;font-size:1rem;margin:0 0 20px;color:var(--mute
 label{display:block;color:var(--muted);font-size:.82rem;margin:14px 0 6px}
 input{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:10px 12px;font:inherit;outline:none}
 input:focus{border-color:var(--accent)}
-button,.link-btn{display:inline-flex;justify-content:center;align-items:center;margin-top:18px;width:100%;border:0;border-radius:7px;padding:10px 12px;background:var(--accent);color:#fff;font-weight:700;font:inherit;text-decoration:none;cursor:pointer}
-.secondary{background:transparent;color:var(--muted);border:1px solid var(--border)}
+button{display:inline-flex;justify-content:center;align-items:center;margin-top:18px;width:100%;border:0;border-radius:7px;padding:10px 12px;background:var(--accent);color:#fff;font-weight:700;font:inherit;cursor:pointer}
 .msg{margin:0 0 12px;color:var(--danger);font-size:.88rem}
 .hint{color:var(--muted);font-size:.82rem;line-height:1.45;margin-top:14px}
 </style>
@@ -538,11 +500,10 @@ button,.link-btn{display:inline-flex;justify-content:center;align-items:center;m
 <h1>First-time setup</h1>
 {% if error %}<p class="msg">{{ error }}</p>{% endif %}
 <form method="post">
-<label>Username</label><input name="username" autocomplete="username" required autofocus>
-<label>Password</label><input name="password" type="password" autocomplete="new-password" required minlength="8">
-<button type="submit">Create Account</button>
+<label>Master Password</label><input name="password" type="password" required minlength="4" autofocus>
+<button type="submit">Set Password</button>
 </form>
-<p class="hint">This account will be used to manage the timer settings.</p>
+<p class="hint">This password will protect access to your timer controls and settings.</p>
 </div>
 </body>
 </html>
@@ -554,7 +515,7 @@ SETUP_LOGIN_HTML = """
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Pi Timer - Setup Login</title>
+<title>Pi Timer - Setup Security</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0d0f14;--surface:#161920;--border:#252830;--accent:#d14242;--text:#e8eaf0;--muted:#6b7280;--danger:#ff8888}
@@ -567,23 +528,21 @@ h1{font-family:'Syne',sans-serif;font-size:1rem;margin:0 0 20px;color:var(--mute
 label{display:block;color:var(--muted);font-size:.82rem;margin:14px 0 6px}
 input[type="checkbox"]{width:18px;height:18px;margin-right:10px}
 .checkbox-group{display:flex;align-items:center;margin:16px 0}
-button,.link-btn{display:inline-flex;justify-content:center;align-items:center;margin-top:18px;width:100%;border:0;border-radius:7px;padding:10px 12px;background:var(--accent);color:#fff;font-weight:700;font:inherit;text-decoration:none;cursor:pointer}
-.secondary{background:transparent;color:var(--muted);border:1px solid var(--border)}
-.msg{margin:0 0 12px;color:var(--danger);font-size:.88rem}
+button{display:inline-flex;justify-content:center;align-items:center;margin-top:18px;width:100%;border:0;border-radius:7px;padding:10px 12px;background:var(--accent);color:#fff;font-weight:700;font:inherit;cursor:pointer}
 .hint{color:var(--muted);font-size:.82rem;line-height:1.45;margin-top:14px}
 </style>
 </head>
 <body>
 <div class="panel">
 <div class="logo">Pi <span>Timer</span></div>
-<h1>Enable Login System</h1>
+<h1>Enable Password Protection</h1>
 <form method="post">
 <div class="checkbox-group">
 <input type="checkbox" id="enable_login" name="enable_login" value="true" checked>
-<label for="enable_login">Require login for access</label>
+<label for="enable_login">Require password for access</label>
 </div>
-<p class="hint">Enable to protect the timer with authentication. Disable for public access.</p>
-<button type="submit">Continue</button>
+<p class="hint">Enable to protect the timer with the password you just set. Disable to allow public access.</p>
+<button type="submit">Complete Setup</button>
 </form>
 </div>
 </body>
@@ -596,7 +555,7 @@ LOGIN_HTML = """
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Pi Timer - Login</title>
+<title>Pi Timer - Access</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0d0f14;--surface:#161920;--border:#252830;--accent:#d14242;--text:#e8eaf0;--muted:#6b7280;--danger:#ff8888}
@@ -609,20 +568,18 @@ h1{font-family:'Syne',sans-serif;font-size:1rem;margin:0 0 20px;color:var(--mute
 label{display:block;color:var(--muted);font-size:.82rem;margin:14px 0 6px}
 input{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:10px 12px;font:inherit;outline:none}
 input:focus{border-color:var(--accent)}
-button,.link-btn{display:inline-flex;justify-content:center;align-items:center;margin-top:18px;width:100%;border:0;border-radius:7px;padding:10px 12px;background:var(--accent);color:#fff;font-weight:700;font:inherit;text-decoration:none;cursor:pointer}
-.secondary{background:transparent;color:var(--muted);border:1px solid var(--border)}
+button{display:inline-flex;justify-content:center;align-items:center;margin-top:18px;width:100%;border:0;border-radius:7px;padding:10px 12px;background:var(--accent);color:#fff;font-weight:700;font:inherit;cursor:pointer}
 .msg{margin:0 0 12px;color:var(--danger);font-size:.88rem}
 </style>
 </head>
 <body>
 <div class="panel">
 <div class="logo">Pi <span>Timer</span></div>
-<h1>Login</h1>
+<h1>Access Timer</h1>
 {% if error %}<p class="msg">{{ error }}</p>{% endif %}
 <form method="post">
-<label>Username</label><input name="username" autocomplete="username" required autofocus>
-<label>Password</label><input name="password" type="password" autocomplete="current-password" required>
-<button type="submit">Log In</button>
+<label>Password</label><input name="password" type="password" required autofocus>
+<button type="submit">Unlock</button>
 </form>
 </div>
 </body>
@@ -647,7 +604,7 @@ header{display:flex;align-items:center;gap:14px;padding:22px 28px;background:var
 a,button{color:var(--accent);text-decoration:none;font:inherit;border:1px solid transparent;border-radius:7px;padding:9px 12px;background:transparent;cursor:pointer}
 button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 button.secondary{background:transparent;color:var(--muted);border:1px solid var(--border)}
-.icon-btn{display:inline-flex;align-items:center;justify-content:center;color:var(--muted);padding:8px;border-radius:10px;transition:all 0.2s;background:transparent;border:1px solid transparent;}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;color:var(--muted);padding:8px;border-radius:10px;transition:all 0.2s;background:transparent;border:1px solid transparent; cursor:pointer;}
 .icon-btn:hover{color:var(--text);background:#17171b;border-color:var(--border);}
 main{max-width:860px;margin:0 auto;padding:30px 22px}
 h1{font-family:'Syne',sans-serif;font-size:1.1rem;margin:0 0 18px}
@@ -676,9 +633,16 @@ input:focus,select:focus{border-color:var(--accent)}
   <div class="logo">Pi <span>Timer</span></div>
   <div class="spacer"></div>
   {% if login_enabled %}
-  <a href="/settings" class="icon-btn" title="Settings">
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-  </a>
+  <div style="display:flex; gap:8px;">
+    <a href="/settings" class="icon-btn" title="Settings">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+    </a>
+    <form method="post" action="/logout" style="margin:0;">
+      <button type="submit" class="icon-btn" title="Logout">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+      </button>
+    </form>
+  </div>
   {% endif %}
 </header>
 <main>
@@ -736,6 +700,8 @@ SETTINGS_HTML = """
         .control-row{display:grid;gap:14px;margin-bottom:16px}
         .control-row:last-child{margin-bottom:0}
         label{display:block;color:var(--text);font-size:.95rem}
+        input{width:100%;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:12px 14px;font:inherit;outline:none}
+        input:focus{border-color:var(--accent)}
         input[type="checkbox"]{width:18px;height:18px;accent-color:var(--accent)}
         .checkbox-group{display:flex;align-items:center;gap:10px}
         .checkbox-group label{color:var(--text);cursor:pointer}
@@ -752,38 +718,43 @@ SETTINGS_HTML = """
             <h1>Settings</h1>
             <a href="/" class="secondary">Back to Timer</a>
         </header>
-
+        
         <div class="control-group">
-            <h2>Account</h2>
+            <h2>Change Password</h2>
             <div class="control-row">
-                <p class="info">Logged in as: <strong>{{ current_user }}</strong></p>
+                <label>Old Password</label>
+                <input type="password" id="oldPassword">
             </div>
-            <form method="post" action="/logout" style="margin-top: 10px;">
-                <button type="submit" class="secondary">Logout</button>
-            </form>
+            <div class="control-row">
+                <label>New Password</label>
+                <input type="password" id="newPassword">
+            </div>
+            <div class="control-row">
+                <label>Confirm New Password</label>
+                <input type="password" id="confirmPassword">
+            </div>
+            <button style="margin-top: 10px;" onclick="changePassword()">Update Password</button>
         </div>
     
         <div class="control-group">
-            <h2>Login System</h2>
+            <h2>Access Control</h2>
             <div class="control-row">
                 <div class="checkbox-group">
                     <input type="checkbox" id="loginEnabled">
-                    <label for="loginEnabled">Require login (disable for public access)</label>
+                    <label for="loginEnabled">Require password for access</label>
                 </div>
-                <p class="info">When disabled, anyone can access the timer without authentication.</p>
+                <p class="info">When disabled, anyone on your network can access and control the timer without a password.</p>
             </div>
             <button onclick="saveLoginSetting()">Save Settings</button>
         </div>
         
-        {% if is_owner %}
         <div class="control-group danger-zone">
-            <h2>Reset App</h2>
+            <h2>Factory Reset</h2>
             <p>
-                This will reset all timers to factory state and remove all user accounts (except the main account).
+                This will reset all timers to factory state and clear the master password. You will need to setup a new password on the next visit.
             </p>
-            <button onclick="resetApp()">Reset to Factory State</button>
+            <button onclick="resetApp()">Factory Reset Application</button>
         </div>
-        {% endif %}
     </div>
     
     <script>
@@ -802,13 +773,43 @@ SETTINGS_HTML = """
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ login_enabled: enabled })
             }).then(r => r.json()).then(() => {
-                alert('Settings saved');
+                alert('Access settings saved.');
                 loadLoginSetting();
             });
         }
         
+        function changePassword() {
+            const oldPw = document.getElementById('oldPassword').value;
+            const newPw = document.getElementById('newPassword').value;
+            const confirmPw = document.getElementById('confirmPassword').value;
+
+            if (!oldPw || !newPw || !confirmPw) {
+                alert('Please fill in all password fields.');
+                return;
+            }
+            if (newPw !== confirmPw) {
+                alert('The new passwords do not match.');
+                return;
+            }
+
+            fetch('/api/password/change', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ old_password: oldPw, new_password: newPw })
+            }).then(r => r.json()).then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    alert('Password successfully updated!');
+                    document.getElementById('oldPassword').value = '';
+                    document.getElementById('newPassword').value = '';
+                    document.getElementById('confirmPassword').value = '';
+                }
+            });
+        }
+        
         function resetApp() {
-            if (confirm('Are you sure? This will reset the app to factory state.')) {
+            if (confirm('Are you absolutely sure? This will reset the app and clear your password.')) {
                 fetch('/api/admin/reset', { method: 'POST' })
                     .then(r => r.json())
                     .then(() => {
