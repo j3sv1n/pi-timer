@@ -111,8 +111,7 @@ def main():
     clock = pygame.time.Clock()
 
     # Fonts
-    font_time = pygame.font.SysFont("dejavusans", 200, bold=True)
-    font_small = pygame.font.SysFont("dejavusans", 48)
+    font_time = pygame.font.SysFont("timesnewroman", base_font_size, bold=False)
 
     # State tracking
     state = load_state()
@@ -215,7 +214,7 @@ def main():
                 time_str = get_current_time()
 
             # Render time text as large as possible within screen margins
-            base_font_size = min(int(SW * 0.22), int(SH * 0.78))
+            base_font_size = min(int(SW * 0.5), int(SH * 0.95))
             font_time = pygame.font.SysFont("dejavusans", base_font_size, bold=True)
             time_surface = font_time.render(time_str, True, display_color)
 
