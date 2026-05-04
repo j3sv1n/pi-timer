@@ -173,5 +173,3 @@ pi-timer/
 ├── timer_config.json      # Application settings (login system, clock format)
 └── timer_secret.key       # Session secret
 ```
-
-```
