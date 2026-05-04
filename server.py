@@ -49,16 +49,18 @@ def read_state():
         except Exception:
             pass
     return {
-        "mode": "clock",  # clock, timer, stopwatch
+        "mode": "clock",
         "timer_seconds": 0,
         "timer_remaining": 0,
         "timer_running": False,
         "timer_limit_seconds": 0,
-        "timer_limit_action": "stop",  # stop or blink
+        "timer_limit_action": "stop",
+        "timer_id": 0,
         "stopwatch_seconds": 0,
         "stopwatch_running": False,
         "stopwatch_limit_seconds": 0,
-        "stopwatch_limit_action": "stop",  # stop or blink
+        "stopwatch_limit_action": "stop",
+        "stopwatch_id": 0,
     }
 
 
@@ -130,7 +132,6 @@ def is_owner():
 
 @app.route("/setup", methods=["GET", "POST"])
 def setup():
-    """First-time setup: create owner account and choose login preference."""
     users = read_users()
     if users["owner"] is not None:
         return redirect(url_for("index"))
@@ -160,7 +161,6 @@ def setup():
 
 @app.route("/setup/login", methods=["GET", "POST"])
 def setup_login():
-    """Setup login preference after owner creation."""
     users = read_users()
     if users["owner"] is None:
         return redirect(url_for("setup"))
@@ -178,7 +178,6 @@ def setup_login():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    """Login for existing users."""
     if not is_login_enabled():
         return redirect(url_for("index"))
     
@@ -203,7 +202,6 @@ def login():
 
 @app.route("/logout", methods=["POST"])
 def logout():
-    """Logout the current user."""
     session.pop("user_id", None)
     return redirect(url_for("login" if is_login_enabled() else "index"))
 
@@ -214,7 +212,6 @@ def logout():
 
 @app.route("/")
 def index():
-    """Main dashboard."""
     users = read_users()
     if users["owner"] is None:
         return redirect(url_for("setup"))
@@ -232,7 +229,6 @@ def index():
 
 @app.route("/admin")
 def admin():
-    """Admin panel."""
     users = read_users()
     if users["owner"] is None:
         return redirect(url_for("setup"))
@@ -258,7 +254,6 @@ def admin():
 
 @app.route("/api/state", methods=["GET"])
 def api_get_state():
-    """Get current timer/stopwatch state."""
     if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     return jsonify(read_state())
@@ -266,14 +261,12 @@ def api_get_state():
 
 @app.route("/api/state", methods=["POST"])
 def api_update_state():
-    """Update timer/stopwatch state."""
     if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     
     state = read_state()
     data = request.get_json() or {}
     
-    # Update fields as needed
     for key in ["mode", "timer_seconds", "timer_remaining", "timer_running",
                 "timer_limit_seconds", "timer_limit_action",
                 "stopwatch_seconds", "stopwatch_running",
@@ -287,12 +280,11 @@ def api_update_state():
 
 @app.route("/api/timer/start", methods=["POST"])
 def api_timer_start():
-    """Start a timer with specified duration."""
     if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     
     data = request.get_json() or {}
-    duration = data.get("duration", 60)  # seconds
+    duration = data.get("duration", 60)
     limit_seconds = data.get("limit_seconds", 0)
     limit_action = data.get("limit_action", "stop")
     set_mode = data.get("set_mode", True)
@@ -305,6 +297,7 @@ def api_timer_start():
     state["timer_running"] = True
     state["timer_limit_seconds"] = limit_seconds
     state["timer_limit_action"] = limit_action
+    state["timer_id"] = time.time()
     write_state(state)
     
     return jsonify(state)
@@ -312,7 +305,6 @@ def api_timer_start():
 
 @app.route("/api/timer/pause", methods=["POST"])
 def api_timer_pause():
-    """Pause the timer."""
     if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     
@@ -324,7 +316,6 @@ def api_timer_pause():
 
 @app.route("/api/timer/resume", methods=["POST"])
 def api_timer_resume():
-    """Resume the timer."""
     if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     
@@ -336,20 +327,19 @@ def api_timer_resume():
 
 @app.route("/api/timer/stop", methods=["POST"])
 def api_timer_stop():
-    """Stop and reset the timer."""
     if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     
     state = read_state()
     state["timer_running"] = False
     state["timer_remaining"] = 0
+    state["timer_id"] = 0
     write_state(state)
     return jsonify(state)
 
 
 @app.route("/api/timer/send", methods=["POST"])
 def api_timer_send():
-    """Send the current timer state to the display without restarting it."""
     if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
@@ -360,7 +350,6 @@ def api_timer_send():
 
 @app.route("/api/stopwatch/start", methods=["POST"])
 def api_stopwatch_start():
-    """Start the stopwatch."""
     if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     
@@ -376,13 +365,13 @@ def api_stopwatch_start():
     state["stopwatch_seconds"] = 0
     state["stopwatch_limit_seconds"] = limit_seconds
     state["stopwatch_limit_action"] = limit_action
+    state["stopwatch_id"] = time.time()
     write_state(state)
     return jsonify(state)
 
 
 @app.route("/api/stopwatch/pause", methods=["POST"])
 def api_stopwatch_pause():
-    """Pause the stopwatch."""
     if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     
@@ -394,7 +383,6 @@ def api_stopwatch_pause():
 
 @app.route("/api/stopwatch/resume", methods=["POST"])
 def api_stopwatch_resume():
-    """Resume the stopwatch."""
     if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     
@@ -406,20 +394,19 @@ def api_stopwatch_resume():
 
 @app.route("/api/stopwatch/stop", methods=["POST"])
 def api_stopwatch_stop():
-    """Stop and reset the stopwatch."""
     if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     
     state = read_state()
     state["stopwatch_running"] = False
     state["stopwatch_seconds"] = 0
+    state["stopwatch_id"] = 0
     write_state(state)
     return jsonify(state)
 
 
 @app.route("/api/stopwatch/reset", methods=["POST"])
 def api_stopwatch_reset():
-    """Reset the stopwatch to zero while keeping stopwatch mode active."""
     if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     
@@ -427,13 +414,13 @@ def api_stopwatch_reset():
     state["mode"] = "stopwatch"
     state["stopwatch_running"] = False
     state["stopwatch_seconds"] = 0
+    state["stopwatch_id"] = 0
     write_state(state)
     return jsonify(state)
 
 
 @app.route("/api/stopwatch/send", methods=["POST"])
 def api_stopwatch_send():
-    """Send the current stopwatch state to the display without restarting it."""
     if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
@@ -444,7 +431,6 @@ def api_stopwatch_send():
 
 @app.route("/api/clock", methods=["GET"])
 def api_clock():
-    """Get current time for clock display."""
     if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     
@@ -458,7 +444,6 @@ def api_clock():
 
 @app.route("/api/admin/users", methods=["GET"])
 def api_admin_get_users():
-    """Get list of all users."""
     if not is_authenticated() or not is_admin():
         return jsonify({"error": "Unauthorized"}), 401
     
@@ -472,7 +457,6 @@ def api_admin_get_users():
 
 @app.route("/api/admin/config", methods=["GET", "POST"])
 def api_admin_config():
-    """Get or update app configuration."""
     if not is_authenticated() or not is_owner():
         return jsonify({"error": "Unauthorized"}), 401
     
@@ -491,7 +475,6 @@ def api_admin_config():
 
 @app.route("/api/admin/reset", methods=["POST"])
 def api_admin_reset():
-    """Reset app to factory state (owner only)."""
     if not is_authenticated() or not is_owner():
         return jsonify({"error": "Unauthorized"}), 401
     
@@ -502,13 +485,14 @@ def api_admin_reset():
         "timer_running": False,
         "timer_limit_seconds": 0,
         "timer_limit_action": "stop",
+        "timer_id": 0,
         "stopwatch_seconds": 0,
         "stopwatch_running": False,
         "stopwatch_limit_seconds": 0,
         "stopwatch_limit_action": "stop",
+        "stopwatch_id": 0,
     })
     
-    # Reset users and config
     write_users({"owner": None, "users": {}})
     write_config({"login_enabled": True})
     
@@ -696,10 +680,11 @@ input:focus,select:focus{border-color:var(--accent)}
 const STATE_UPDATE_INTERVAL = 100;
 function switchTab(tab){document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('active'));document.getElementById(tab).classList.add('active');document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');updateDisplay();}
 function formatMinutesSeconds(seconds){const m=Math.floor(seconds/60);const s=Math.floor(seconds%60);return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}
-function formatHourMinute(date, format){const h=date.getHours();const m=String(date.getMinutes()).padStart(2,'0');const colon = Math.floor(Date.now()/500) % 2 === 0 ? ':' : ' ';if(format==='12'){const ampm=h>=12?'PM':'AM';const hh=h%12||12;return `${hh}${colon}${m} ${ampm}`;}else{return `${String(h).padStart(2,'0')}${colon}${m}`;}}
+function formatHourMinute(date, format){const h=date.getHours();const m=String(date.getMinutes()).padStart(2,'0');const colon = Math.floor(Date.now()/500) % 2 === 0 ? ':' : ' ';if(format==='12'){const hh=h%12||12; return `${hh}${colon}${m}`;}else{return `${String(h).padStart(2,'0')}${colon}${m}`;}}
 function updateDisplay(){fetch('/api/state').then(r=>r.json()).then(state=>{const now=new Date();const format=document.getElementById('clockFormat').value;document.getElementById('clockDisplay').textContent=formatHourMinute(now,format);if(state.mode==='timer'){document.getElementById('timerDisplay').textContent=formatMinutesSeconds(state.timer_remaining);}else if(state.mode==='stopwatch'){document.getElementById('stopwatchDisplay').textContent=formatMinutesSeconds(state.stopwatch_seconds);}});} 
-function changeClockFormat(format){fetch('/api/admin/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clock_format:format})}).then(()=>updateDisplay());}
-function loadConfig(){fetch('/api/admin/config').then(r=>r.json()).then(config=>{document.getElementById('clockFormat').value=config.clock_format||'24';});}
+function changeClockFormat(format){updateDisplay();}
+function loadConfig(){fetch('/api/admin/config').then(r=>r.json()).then(config=>{document.getElementById('clockFormat').value=config.clock_format||'12';});}
+function sendToDisplay(mode){if(mode==='clock'){const format=document.getElementById('clockFormat').value;fetch('/api/admin/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clock_format:format})}).then(()=>fetch('/api/clock')).then(()=>updateDisplay());}else if(mode==='timer'){fetch('/api/timer/send',{method:'POST'}).then(()=>updateDisplay());}else if(mode==='stopwatch'){fetch('/api/stopwatch/send',{method:'POST'}).then(()=>updateDisplay());}}
 function startTimer(){const h=parseInt(document.getElementById('timerHours').value)||0;const m=parseInt(document.getElementById('timerMinutes').value)||0;const s=parseInt(document.getElementById('timerSeconds').value)||0;const duration=h*3600+m*60+s;if(duration<=0){alert('Set a timer duration before starting.');return;}fetch('/api/timer/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({duration:duration,limit_seconds:0,limit_action:'stop',set_mode:false})}).then(()=>updateDisplay());}
 function pauseTimer(){fetch('/api/timer/pause',{method:'POST'}).then(()=>updateDisplay());}
 function stopTimer(){fetch('/api/timer/stop',{method:'POST'}).then(()=>updateDisplay());}

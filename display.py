@@ -44,10 +44,12 @@ def load_state():
         "timer_running": False,
         "timer_limit_seconds": 0,
         "timer_limit_action": "stop",
+        "timer_id": 0,
         "stopwatch_seconds": 0,
         "stopwatch_running": False,
         "stopwatch_limit_seconds": 0,
         "stopwatch_limit_action": "stop",
+        "stopwatch_id": 0,
     }
 
 
@@ -58,7 +60,7 @@ def read_config():
             return data
         except Exception:
             pass
-    return {"login_enabled": True, "clock_format": "24"}
+    return {"login_enabled": True, "clock_format": "12"}
 
 
 def format_time(seconds):
@@ -75,8 +77,7 @@ def get_current_time(blink=True):
     sep = ':' if blink else ' '
     if config.get("clock_format") == "12":
         h = now.hour % 12 or 12
-        ampm = "AM" if now.hour < 12 else "PM"
-        return f"{h:02d}{sep}{now.minute:02d} {ampm}"
+        return f"{h:02d}{sep}{now.minute:02d}"
     else:
         return f"{now.hour:02d}{sep}{now.minute:02d}"
 
@@ -135,7 +136,16 @@ def main():
 
     def on_state_changed():
         nonlocal state
-        state = load_state()
+        new_state = load_state()
+        
+        # If the session ID matches, preserve the display's internal elapsed time
+        if state.get("timer_id") and state.get("timer_id") == new_state.get("timer_id"):
+            new_state["timer_remaining"] = state.get("timer_remaining", 0)
+            
+        if state.get("stopwatch_id") and state.get("stopwatch_id") == new_state.get("stopwatch_id"):
+            new_state["stopwatch_seconds"] = state.get("stopwatch_seconds", 0)
+            
+        state = new_state
 
     # Start filesystem watcher
     watcher = StateWatcher(on_state_changed)
@@ -157,6 +167,7 @@ def main():
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         running = False
+                        
             # Update state based on running timers/stopwatches
             if state["timer_running"]:
                 elapsed = current_time - last_update_time
