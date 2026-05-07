@@ -101,22 +101,32 @@ def main():
     pygame.init()
     pygame.mouse.set_visible(False)
 
-    # Try DISPLAY:1 first, fall back to DISPLAY:0
-    original_display = os.environ.get("DISPLAY")
-    displays_to_try = [":1", ":0"]
+    # Use the DISPLAY and target monitor index set by our startup script
+    current_display = os.environ.get("DISPLAY", ":0")
+    target_monitor = int(os.environ.get("SDL_VIDEO_FULLSCREEN_DISPLAY", 0))
     
     screen = None
-    for display in displays_to_try:
-        try:
-            os.environ["DISPLAY"] = display
+    try:
+        os.environ["DISPLAY"] = current_display
+        pygame.display.init()
+        
+        # Get the true resolution of the specific physical monitor we are targeting
+        if hasattr(pygame.display, 'get_desktop_sizes'):
+            sizes = pygame.display.get_desktop_sizes()
+            if target_monitor < len(sizes):
+                SW, SH = sizes[target_monitor]
+            else:
+                SW, SH = sizes[0]
+                target_monitor = 0
+        else:
             info = pygame.display.Info()
             SW, SH = info.current_w, info.current_h
-            screen = pygame.display.set_mode((SW, SH), pygame.FULLSCREEN | pygame.NOFRAME)
-            print(f"Display initialized on {display}: {SW}x{SH}")
-            break
-        except Exception as e:
-            print(f"Failed to initialize display on {display}: {e}")
-            continue
+
+        # The 'display=target_monitor' argument forces Pygame to lock onto the specific HDMI port
+        screen = pygame.display.set_mode((SW, SH), pygame.FULLSCREEN | pygame.NOFRAME, display=target_monitor)
+        print(f"Display initialized on {current_display} (Physical Monitor {target_monitor}): {SW}x{SH}")
+    except Exception as e:
+        print(f"Failed to initialize display: {e}")
 
     if screen is None:
         print("Failed to initialize any display")
