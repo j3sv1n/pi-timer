@@ -651,6 +651,13 @@ h1{font-family:'Syne',sans-serif;font-size:1.1rem;margin:0 0 18px; display: flex
 .tab-content.active{display:block}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:26px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
 .time-display{width:100%;min-height:180px;display:flex;align-items:center;justify-content:center;border-radius:18px;background:#080808;border:1px solid rgba(185,28,28,.25);color:#b91c1c;font-family:'Syne',sans-serif;font-size:clamp(4rem,10vw,8rem);font-weight:800;text-align:center;margin-bottom:24px;padding:30px 24px}
+
+@keyframes alertBlink {
+  0%, 49% { background: #b91c1c; color: #fff; border-color: #b91c1c; }
+  50%, 100% { background: #080808; color: #b91c1c; border-color: rgba(185,28,28,.25); }
+}
+.time-display.blink-active { animation: alertBlink 1s infinite; }
+
 .control-row{margin-bottom:20px}
 label{display:block;margin-bottom:10px;color:var(--muted);font-size:.82rem;text-transform:uppercase;letter-spacing:.08em}
 input,select{width:100%;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:12px 14px;font:inherit;outline:none}
@@ -709,7 +716,14 @@ function updateDisplay(){
         document.getElementById('clockDisplay').textContent=formatHourMinute(now,format);
         
         // Timer UI
-        document.getElementById('timerDisplay').textContent=formatMinutesSeconds(state.timer_remaining);
+        const timerDisplay = document.getElementById('timerDisplay');
+        timerDisplay.textContent = formatMinutesSeconds(state.timer_remaining);
+        if (state.timer_limit_action === 'blink' && state.timer_limit_seconds > 0 && state.timer_remaining <= state.timer_limit_seconds && !state.timer_running && state.timer_id !== 0) {
+            timerDisplay.classList.add('blink-active');
+        } else {
+            timerDisplay.classList.remove('blink-active');
+        }
+
         const btnTStart = document.getElementById('btnTimerStart');
         const btnTPause = document.getElementById('btnTimerPause');
         if(state.timer_running){
@@ -718,6 +732,7 @@ function updateDisplay(){
             btnTPause.onclick = pauseTimer;
         } else {
             btnTStart.disabled = false;
+            // Use timer_id to determine if it is actively paused vs stopped/cleared
             if(state.timer_id !== 0){
                 btnTPause.textContent = "Resume";
                 btnTPause.onclick = resumeTimer;
@@ -728,7 +743,14 @@ function updateDisplay(){
         }
         
         // Stopwatch UI
-        document.getElementById('stopwatchDisplay').textContent=formatMinutesSeconds(state.stopwatch_seconds);
+        const stopwatchDisplay = document.getElementById('stopwatchDisplay');
+        stopwatchDisplay.textContent = formatMinutesSeconds(state.stopwatch_seconds);
+        if (state.stopwatch_limit_action === 'blink' && state.stopwatch_limit_seconds > 0 && state.stopwatch_seconds >= state.stopwatch_limit_seconds) {
+            stopwatchDisplay.classList.add('blink-active');
+        } else {
+            stopwatchDisplay.classList.remove('blink-active');
+        }
+
         const btnSStart = document.getElementById('btnStopwatchStart');
         const btnSPause = document.getElementById('btnStopwatchPause');
         if(state.stopwatch_running){
@@ -737,6 +759,7 @@ function updateDisplay(){
             btnSPause.onclick = pauseStopwatch;
         } else {
             btnSStart.disabled = false;
+            // Use stopwatch_id to determine if it is actively paused vs stopped/cleared
             if(state.stopwatch_id !== 0){
                 btnSPause.textContent = "Resume";
                 btnSPause.onclick = resumeStopwatch;
