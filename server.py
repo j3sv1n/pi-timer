@@ -9,6 +9,8 @@ import os
 import json
 import time
 import secrets
+import threading
+import urllib.request
 from pathlib import Path
 from flask import (Flask, request, jsonify, send_from_directory,
                    render_template_string, abort, session, redirect, url_for)
@@ -97,7 +99,6 @@ def read_state():
                 state["stopwatch_seconds"] = state["stopwatch_limit_seconds"]
 
     # --- COMPANION HELPER VARIABLES ---
-    # These inject ready-to-display text directly into Companion variables
     state["comp_t_h"] = f"{(state.get('companion_timer', 0) // 3600):02d}"
     state["comp_t_m"] = f"{((state.get('companion_timer', 0) % 3600) // 60):02d}"
     state["comp_t_s"] = f"{(state.get('companion_timer', 0) % 60):02d}"
@@ -142,7 +143,7 @@ def read_config():
             if "login_enabled" in data: return data
         except Exception:
             pass
-    return {"login_enabled": True, "clock_format": "12"}
+    return {"login_enabled": True, "clock_format": "12", "companion_ip": ""}
 
 
 def write_config(data):
@@ -157,6 +158,53 @@ def is_authenticated():
     if not is_login_enabled(): return True
     return session.get("authenticated") is True
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Companion Sync Background Thread (Pushes variables directly to Companion)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def companion_sync_loop():
+    last_pushed = {}
+    while True:
+        time.sleep(0.2) # Check efficiently 5 times a second
+        config = read_config()
+        comp_target = config.get("companion_ip", "").strip()
+        if not comp_target:
+            continue
+            
+        if not comp_target.startswith("http"):
+            comp_target = "http://" + comp_target
+            
+        state = read_state()
+        updates = {
+            "comp_t_h": state["comp_t_h"],
+            "comp_t_m": state["comp_t_m"],
+            "comp_t_s": state["comp_t_s"],
+            "comp_s_h": state["comp_s_h"],
+            "comp_s_m": state["comp_s_m"],
+            "comp_s_s": state["comp_s_s"],
+            "comp_t_play": state["comp_t_play"],
+            "comp_s_play": state["comp_s_play"],
+            "comp_clk_fmt": state["comp_clk_fmt"],
+            "comp_sw_limit": state["comp_sw_limit"],
+        }
+        
+        for key, val in updates.items():
+            if last_pushed.get(key) == val:
+                continue # Only send HTTP request if the value actually changed
+                
+            url = f"{comp_target}/api/custom-variable/{key}/value"
+            # Companion requires JSON payload with text in double quotes
+            data = json.dumps(str(val)).encode('utf-8') 
+            req = urllib.request.Request(url, method="POST", data=data)
+            req.add_header("Content-Type", "application/json")
+            try:
+                urllib.request.urlopen(req, timeout=0.2)
+                last_pushed[key] = val
+            except Exception:
+                pass
+
+# Start the push engine
+threading.Thread(target=companion_sync_loop, daemon=True).start()
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Main Routes
@@ -490,6 +538,7 @@ def api_admin_config():
     config = read_config()
     if "login_enabled" in data: config["login_enabled"] = data["login_enabled"]
     if "clock_format" in data: config["clock_format"] = data["clock_format"]
+    if "companion_ip" in data: config["companion_ip"] = data["companion_ip"]
     write_config(config)
     return jsonify(config)
 
@@ -498,7 +547,7 @@ def api_admin_reset():
     if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     write_state(get_default_state())
     write_auth({"password_hash": None})
-    write_config({"login_enabled": True, "clock_format": "12"})
+    write_config({"login_enabled": True, "clock_format": "12", "companion_ip": ""})
     session.pop("authenticated", None)
     return jsonify({"status": "reset"})
 
@@ -814,7 +863,7 @@ SETTINGS_HTML = """
         .control-row{display:grid;gap:14px;margin-bottom:16px}
         .control-row:last-child{margin-bottom:0}
         label{display:block;color:var(--text);font-size:.95rem}
-        input{width:100%;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:12px 14px;font:inherit;outline:none}
+        input[type="text"], input[type="password"]{width:100%;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:12px 14px;font:inherit;outline:none}
         input:focus{border-color:var(--accent)}
         input[type="checkbox"]{width:18px;height:18px;accent-color:var(--accent)}
         .checkbox-group{display:flex;align-items:center;gap:10px}
@@ -832,6 +881,16 @@ SETTINGS_HTML = """
             <h1>Settings</h1>
             <a href="/" class="secondary">Back to Timer</a>
         </header>
+
+        <div class="control-group">
+            <h2>Companion Integration</h2>
+            <div class="control-row">
+                <label>Companion IP & Port</label>
+                <input type="text" id="companionIp" placeholder="e.g. 192.168.1.10:8000">
+                <p class="info">Enter the IP and Port of your Bitfocus Companion to push variables automatically. Ensure the HTTP API is enabled in Companion.</p>
+            </div>
+            <button onclick="saveCompanionSetting()">Save Companion IP</button>
+        </div>
     
         <div class="control-group">
             <h2>Access Control</h2>
@@ -872,11 +931,12 @@ SETTINGS_HTML = """
     </div>
     
     <script>
-        function loadLoginSetting() {
+        function loadSettings() {
             fetch('/api/admin/config')
                 .then(r => r.json())
                 .then(config => {
                     document.getElementById('loginEnabled').checked = config.login_enabled;
+                    document.getElementById('companionIp').value = config.companion_ip || '';
                 });
         }
         
@@ -888,7 +948,18 @@ SETTINGS_HTML = """
                 body: JSON.stringify({ login_enabled: enabled })
             }).then(r => r.json()).then(() => {
                 alert('Access settings saved.');
-                loadLoginSetting();
+                loadSettings();
+            });
+        }
+
+        function saveCompanionSetting() {
+            const ip = document.getElementById('companionIp').value;
+            fetch('/api/admin/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ companion_ip: ip })
+            }).then(r => r.json()).then(() => {
+                alert('Companion IP saved.');
             });
         }
         
@@ -933,7 +1004,7 @@ SETTINGS_HTML = """
             }
         }
         
-        loadLoginSetting();
+        loadSettings();
     </script>
 </body>
 </html>
