@@ -39,12 +39,7 @@ app.config.update(
 )
 
 
-def read_state():
-    if STATE_FILE.exists():
-        try:
-            return json.loads(STATE_FILE.read_text())
-        except Exception:
-            pass
+def get_default_state():
     return {
         "mode": "clock",
         "timer_seconds": 0,
@@ -53,12 +48,56 @@ def read_state():
         "timer_limit_seconds": 0,
         "timer_limit_action": "stop",
         "timer_id": 0,
+        "timer_last_update": 0,
         "stopwatch_seconds": 0,
         "stopwatch_running": False,
         "stopwatch_limit_seconds": 0,
         "stopwatch_limit_action": "stop",
         "stopwatch_id": 0,
+        "stopwatch_last_update": 0,
     }
+
+
+def read_state():
+    state = get_default_state()
+    if STATE_FILE.exists():
+        try:
+            data = json.loads(STATE_FILE.read_text())
+            state.update(data)
+        except Exception:
+            pass
+            
+    # Calculate live exact time elapsed on-the-fly to serve to the web UI
+    now = time.time()
+    
+    if state.get("timer_running"):
+        elapsed = now - state.get("timer_last_update", now)
+        state["timer_remaining"] = max(0, state.get("timer_remaining", 0) - elapsed)
+        state["timer_last_update"] = now
+        
+        # Check limits
+        if state.get("timer_limit_seconds", 0) > 0 and state["timer_remaining"] <= state["timer_limit_seconds"]:
+            if state.get("timer_limit_action") == "stop":
+                state["timer_running"] = False
+                state["timer_remaining"] = state["timer_limit_seconds"]
+                
+        # End of timer
+        if state["timer_remaining"] <= 0:
+            state["timer_running"] = False
+            state["timer_remaining"] = 0
+            
+    if state.get("stopwatch_running"):
+        elapsed = now - state.get("stopwatch_last_update", now)
+        state["stopwatch_seconds"] = state.get("stopwatch_seconds", 0) + elapsed
+        state["stopwatch_last_update"] = now
+        
+        # Check limits
+        if state.get("stopwatch_limit_seconds", 0) > 0 and state["stopwatch_seconds"] >= state["stopwatch_limit_seconds"]:
+            if state.get("stopwatch_limit_action") == "stop":
+                state["stopwatch_running"] = False
+                state["stopwatch_seconds"] = state["stopwatch_limit_seconds"]
+
+    return state
 
 
 def write_state(state):
@@ -231,6 +270,9 @@ def api_update_state():
                 "stopwatch_limit_seconds", "stopwatch_limit_action"]:
         if key in data:
             state[key] = data[key]
+            
+    state["timer_last_update"] = time.time()
+    state["stopwatch_last_update"] = time.time()
     
     write_state(state)
     return jsonify(state)
@@ -256,6 +298,7 @@ def api_timer_start():
     state["timer_limit_seconds"] = limit_seconds
     state["timer_limit_action"] = limit_action
     state["timer_id"] = time.time()
+    state["timer_last_update"] = state["timer_id"]
     write_state(state)
     
     return jsonify(state)
@@ -279,6 +322,7 @@ def api_timer_resume():
     
     state = read_state()
     state["timer_running"] = True
+    state["timer_last_update"] = time.time()
     write_state(state)
     return jsonify(state)
 
@@ -324,6 +368,7 @@ def api_stopwatch_start():
     state["stopwatch_limit_seconds"] = limit_seconds
     state["stopwatch_limit_action"] = limit_action
     state["stopwatch_id"] = time.time()
+    state["stopwatch_last_update"] = state["stopwatch_id"]
     write_state(state)
     return jsonify(state)
 
@@ -346,6 +391,7 @@ def api_stopwatch_resume():
     
     state = read_state()
     state["stopwatch_running"] = True
+    state["stopwatch_last_update"] = time.time()
     write_state(state)
     return jsonify(state)
 
@@ -444,21 +490,7 @@ def api_admin_reset():
     if not is_authenticated():
         return jsonify({"error": "Unauthorized"}), 401
     
-    write_state({
-        "mode": "clock",
-        "timer_seconds": 0,
-        "timer_remaining": 0,
-        "timer_running": False,
-        "timer_limit_seconds": 0,
-        "timer_limit_action": "stop",
-        "timer_id": 0,
-        "stopwatch_seconds": 0,
-        "stopwatch_running": False,
-        "stopwatch_limit_seconds": 0,
-        "stopwatch_limit_action": "stop",
-        "stopwatch_id": 0,
-    })
-    
+    write_state(get_default_state())
     write_auth({"password_hash": None})
     write_config({"login_enabled": True, "clock_format": "12"})
     
@@ -607,7 +639,11 @@ button.secondary{background:transparent;color:var(--muted);border:1px solid var(
 .icon-btn{display:inline-flex;align-items:center;justify-content:center;color:var(--muted);padding:8px;border-radius:10px;transition:all 0.2s;background:transparent;border:1px solid transparent; cursor:pointer;}
 .icon-btn:hover{color:var(--text);background:#17171b;border-color:var(--border);}
 main{max-width:860px;margin:0 auto;padding:30px 22px}
-h1{font-family:'Syne',sans-serif;font-size:1.1rem;margin:0 0 18px}
+h1{font-family:'Syne',sans-serif;font-size:1.1rem;margin:0 0 18px; display: flex; align-items: center;}
+.badge { font-size: 0.7rem; padding: 4px 8px; border-radius: 6px; background: var(--border); color: var(--text); margin-left: 12px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;}
+.badge.mode-clock { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+.badge.mode-timer { background: rgba(56, 189, 248, 0.2); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.3); }
+.badge.mode-stopwatch { background: rgba(168, 85, 247, 0.2); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.3); }
 .tabs{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px}
 .tab-btn{border:1px solid var(--border);border-radius:10px;padding:12px 16px;background:var(--surface);color:var(--muted);font:inherit;cursor:pointer}
 .tab-btn.active{color:var(--text);border-color:var(--accent);background:#17171b}
@@ -615,6 +651,13 @@ h1{font-family:'Syne',sans-serif;font-size:1.1rem;margin:0 0 18px}
 .tab-content.active{display:block}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:26px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
 .time-display{width:100%;min-height:180px;display:flex;align-items:center;justify-content:center;border-radius:18px;background:#080808;border:1px solid rgba(185,28,28,.25);color:#b91c1c;font-family:'Syne',sans-serif;font-size:clamp(4rem,10vw,8rem);font-weight:800;text-align:center;margin-bottom:24px;padding:30px 24px}
+
+@keyframes alertBlink {
+  0%, 49% { background: #b91c1c; color: #fff; border-color: #b91c1c; }
+  50%, 100% { background: #080808; color: #b91c1c; border-color: rgba(185,28,28,.25); }
+}
+.time-display.blink-active { animation: alertBlink 1s infinite; }
+
 .control-row{margin-bottom:20px}
 label{display:block;margin-bottom:10px;color:var(--muted);font-size:.82rem;text-transform:uppercase;letter-spacing:.08em}
 input,select{width:100%;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:12px 14px;font:inherit;outline:none}
@@ -647,7 +690,7 @@ input:focus,select:focus{border-color:var(--accent)}
   {% endif %}
 </header>
 <main>
-<h1>Control panel</h1>
+<h1>Control panel <span id="displayModeBadge" class="badge"></span></h1>
 <div class="tabs"><button class="tab-btn active" onclick="switchTab('clock')">Clock</button><button class="tab-btn" onclick="switchTab('timer')">Timer</button><button class="tab-btn" onclick="switchTab('stopwatch')">Stopwatch</button></div>
 <div id="clock" class="tab-content active"><div class="card"><div class="time-display" id="clockDisplay">00:00</div><div class="control-row"><label for="clockFormat">Clock Format</label><select id="clockFormat" onchange="changeClockFormat(this.value)"><option value="12">12 Hour</option><option value="24">24 Hour</option></select></div><p class="info-text">Current time displayed on the fullscreen display</p><button class="send-btn" onclick="sendToDisplay('clock')">Send Clock to Display</button></div></div>
 <div id="timer" class="tab-content"><div class="card"><div class="time-display" id="timerDisplay">00:00</div><div class="control-row"><label for="timerHours">Duration</label><div class="time-inputs"><input type="number" id="timerHours" placeholder="HH" min="0" max="99"><input type="number" id="timerMinutes" placeholder="MM" min="0" max="59"><input type="number" id="timerSeconds" placeholder="SS" min="0" max="59"></div></div><div class="button-group"><button type="button" id="btnTimerStart" onclick="startTimer()">Start</button><button type="button" id="btnTimerPause" class="secondary" onclick="pauseTimer()">Pause</button><button type="button" class="secondary" onclick="stopTimer()">Reset</button></div><button class="send-btn" onclick="sendToDisplay('timer')">Send Timer to Display</button></div></div>
@@ -660,12 +703,27 @@ function formatMinutesSeconds(seconds){const m=Math.floor(seconds/60);const s=Ma
 function formatHourMinute(date, format){const h=date.getHours();const m=String(date.getMinutes()).padStart(2,'0');const colon = Math.floor(Date.now()/500) % 2 === 0 ? ':' : ' ';if(format==='12'){const hh=h%12||12;return `${hh}${colon}${m}`;}else{return `${String(h).padStart(2,'0')}${colon}${m}`;}}
 function updateDisplay(){
     fetch('/api/state').then(r=>r.json()).then(state=>{
+        
+        // Active Display Badge
+        const badge = document.getElementById('displayModeBadge');
+        if(badge) {
+            badge.textContent = "On Display: " + state.mode;
+            badge.className = "badge mode-" + state.mode;
+        }
+
         const now=new Date();
         const format=document.getElementById('clockFormat').value;
         document.getElementById('clockDisplay').textContent=formatHourMinute(now,format);
         
         // Timer UI
-        document.getElementById('timerDisplay').textContent=formatMinutesSeconds(state.timer_remaining);
+        const timerDisplay = document.getElementById('timerDisplay');
+        timerDisplay.textContent = formatMinutesSeconds(state.timer_remaining);
+        if (state.timer_limit_action === 'blink' && state.timer_limit_seconds > 0 && state.timer_remaining <= state.timer_limit_seconds && !state.timer_running && state.timer_id !== 0) {
+            timerDisplay.classList.add('blink-active');
+        } else {
+            timerDisplay.classList.remove('blink-active');
+        }
+
         const btnTStart = document.getElementById('btnTimerStart');
         const btnTPause = document.getElementById('btnTimerPause');
         if(state.timer_running){
@@ -685,7 +743,14 @@ function updateDisplay(){
         }
         
         // Stopwatch UI
-        document.getElementById('stopwatchDisplay').textContent=formatMinutesSeconds(state.stopwatch_seconds);
+        const stopwatchDisplay = document.getElementById('stopwatchDisplay');
+        stopwatchDisplay.textContent = formatMinutesSeconds(state.stopwatch_seconds);
+        if (state.stopwatch_limit_action === 'blink' && state.stopwatch_limit_seconds > 0 && state.stopwatch_seconds >= state.stopwatch_limit_seconds) {
+            stopwatchDisplay.classList.add('blink-active');
+        } else {
+            stopwatchDisplay.classList.remove('blink-active');
+        }
+
         const btnSStart = document.getElementById('btnStopwatchStart');
         const btnSPause = document.getElementById('btnStopwatchPause');
         if(state.stopwatch_running){
