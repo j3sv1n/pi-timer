@@ -55,6 +55,8 @@ def get_default_state():
         "stopwatch_limit_action": "stop",
         "stopwatch_id": 0,
         "stopwatch_last_update": 0,
+        "companion_timer": 0,        # Companion draft timer
+        "companion_stopwatch": 0,    # Companion draft stopwatch
     }
 
 
@@ -75,13 +77,11 @@ def read_state():
         state["timer_remaining"] = max(0, state.get("timer_remaining", 0) - elapsed)
         state["timer_last_update"] = now
         
-        # Check limits
         if state.get("timer_limit_seconds", 0) > 0 and state["timer_remaining"] <= state["timer_limit_seconds"]:
             if state.get("timer_limit_action") == "stop":
                 state["timer_running"] = False
                 state["timer_remaining"] = state["timer_limit_seconds"]
                 
-        # End of timer
         if state["timer_remaining"] <= 0:
             state["timer_running"] = False
             state["timer_remaining"] = 0
@@ -91,11 +91,26 @@ def read_state():
         state["stopwatch_seconds"] = state.get("stopwatch_seconds", 0) + elapsed
         state["stopwatch_last_update"] = now
         
-        # Check limits
         if state.get("stopwatch_limit_seconds", 0) > 0 and state["stopwatch_seconds"] >= state["stopwatch_limit_seconds"]:
             if state.get("stopwatch_limit_action") == "stop":
                 state["stopwatch_running"] = False
                 state["stopwatch_seconds"] = state["stopwatch_limit_seconds"]
+
+    # --- COMPANION HELPER VARIABLES ---
+    # These inject ready-to-display text directly into Companion variables
+    state["comp_t_h"] = f"{(state.get('companion_timer', 0) // 3600):02d}"
+    state["comp_t_m"] = f"{((state.get('companion_timer', 0) % 3600) // 60):02d}"
+    state["comp_t_s"] = f"{(state.get('companion_timer', 0) % 60):02d}"
+
+    state["comp_s_h"] = f"{(state.get('companion_stopwatch', 0) // 3600):02d}"
+    state["comp_s_m"] = f"{((state.get('companion_stopwatch', 0) % 3600) // 60):02d}"
+    state["comp_s_s"] = f"{(state.get('companion_stopwatch', 0) % 60):02d}"
+
+    state["comp_t_play"] = "PAUSE" if state.get("timer_running") else ("RESUME" if state.get("timer_id") != 0 else "PAUSE")
+    state["comp_s_play"] = "PAUSE" if state.get("stopwatch_running") else ("RESUME" if state.get("stopwatch_id") != 0 else "PAUSE")
+
+    state["comp_clk_fmt"] = f"MODE:\\n{read_config().get('clock_format', '12')}H"
+    state["comp_sw_limit"] = f"LIMIT:\\n{state.get('stopwatch_limit_action', 'stop').upper()}"
 
     return state
 
@@ -108,8 +123,7 @@ def read_auth():
     if AUTH_FILE.exists():
         try:
             data = json.loads(AUTH_FILE.read_text())
-            if "password_hash" in data:
-                return data
+            if "password_hash" in data: return data
         except Exception:
             pass
     return {"password_hash": None}
@@ -117,18 +131,15 @@ def read_auth():
 
 def write_auth(data):
     AUTH_FILE.write_text(json.dumps(data, indent=2))
-    try:
-        os.chmod(AUTH_FILE, 0o600)
-    except Exception:
-        pass
+    try: os.chmod(AUTH_FILE, 0o600)
+    except Exception: pass
 
 
 def read_config():
     if CONFIG_FILE.exists():
         try:
             data = json.loads(CONFIG_FILE.read_text())
-            if "login_enabled" in data:
-                return data
+            if "login_enabled" in data: return data
         except Exception:
             pass
     return {"login_enabled": True, "clock_format": "12"}
@@ -143,78 +154,8 @@ def is_login_enabled():
 
 
 def is_authenticated():
-    if not is_login_enabled():
-        return True
+    if not is_login_enabled(): return True
     return session.get("authenticated") is True
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Auth Routes
-# ──────────────────────────────────────────────────────────────────────────────
-
-@app.route("/setup", methods=["GET", "POST"])
-def setup():
-    auth = read_auth()
-    if auth["password_hash"] is not None:
-        return redirect(url_for("index"))
-    
-    if request.method == "POST":
-        password = request.form.get("password", "").strip()
-        
-        if not password or len(password) < 4:
-            return render_template_string(SETUP_HTML, error="Password must be at least 4 characters.")
-        
-        write_auth({"password_hash": generate_password_hash(password)})
-        session["authenticated"] = True
-        return redirect(url_for("setup_login"))
-    
-    return render_template_string(SETUP_HTML, error=None)
-
-
-@app.route("/setup/login", methods=["GET", "POST"])
-def setup_login():
-    auth = read_auth()
-    if auth["password_hash"] is None:
-        return redirect(url_for("setup"))
-    
-    if not session.get("authenticated"):
-        return redirect(url_for("setup"))
-    
-    if request.method == "POST":
-        enable_login = request.form.get("enable_login") == "true"
-        config = read_config()
-        config["login_enabled"] = enable_login
-        write_config(config)
-        return redirect(url_for("index"))
-    
-    return render_template_string(SETUP_LOGIN_HTML)
-
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if not is_login_enabled():
-        return redirect(url_for("index"))
-    
-    if session.get("authenticated"):
-        return redirect(url_for("index"))
-    
-    if request.method == "POST":
-        password = request.form.get("password", "").strip()
-        auth = read_auth()
-        
-        if auth["password_hash"] and check_password_hash(auth["password_hash"], password):
-            session["authenticated"] = True
-            return redirect(url_for("index"))
-        
-        return render_template_string(LOGIN_HTML, error="Invalid password.")
-    
-    return render_template_string(LOGIN_HTML, error=None)
-
-
-@app.route("/logout", methods=["POST"])
-def logout():
-    session.pop("authenticated", None)
-    return redirect(url_for("login" if is_login_enabled() else "index"))
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -224,114 +165,122 @@ def logout():
 @app.route("/")
 def index():
     auth = read_auth()
-    if auth["password_hash"] is None:
-        return redirect(url_for("setup"))
-    
-    if not is_authenticated():
-        return redirect(url_for("login"))
-    
+    if auth["password_hash"] is None: return redirect(url_for("setup"))
+    if not is_authenticated(): return redirect(url_for("login"))
     return render_template_string(DASHBOARD_HTML, login_enabled=is_login_enabled())
-
 
 @app.route("/settings")
 def settings():
     auth = read_auth()
-    if auth["password_hash"] is None:
-        return redirect(url_for("setup"))
-    
-    if not is_authenticated():
-        return redirect(url_for("login"))
-    
+    if auth["password_hash"] is None: return redirect(url_for("setup"))
+    if not is_authenticated(): return redirect(url_for("login"))
     return render_template_string(SETTINGS_HTML)
+
+# Auth Routes
+@app.route("/setup", methods=["GET", "POST"])
+def setup():
+    auth = read_auth()
+    if auth["password_hash"] is not None: return redirect(url_for("index"))
+    if request.method == "POST":
+        password = request.form.get("password", "").strip()
+        if not password or len(password) < 4:
+            return render_template_string(SETUP_HTML, error="Password must be at least 4 characters.")
+        write_auth({"password_hash": generate_password_hash(password)})
+        session["authenticated"] = True
+        return redirect(url_for("setup_login"))
+    return render_template_string(SETUP_HTML, error=None)
+
+@app.route("/setup/login", methods=["GET", "POST"])
+def setup_login():
+    auth = read_auth()
+    if auth["password_hash"] is None: return redirect(url_for("setup"))
+    if not session.get("authenticated"): return redirect(url_for("setup"))
+    if request.method == "POST":
+        config = read_config()
+        config["login_enabled"] = request.form.get("enable_login") == "true"
+        write_config(config)
+        return redirect(url_for("index"))
+    return render_template_string(SETUP_LOGIN_HTML)
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if not is_login_enabled(): return redirect(url_for("index"))
+    if session.get("authenticated"): return redirect(url_for("index"))
+    if request.method == "POST":
+        password = request.form.get("password", "").strip()
+        auth = read_auth()
+        if auth["password_hash"] and check_password_hash(auth["password_hash"], password):
+            session["authenticated"] = True
+            return redirect(url_for("index"))
+        return render_template_string(LOGIN_HTML, error="Invalid password.")
+    return render_template_string(LOGIN_HTML, error=None)
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.pop("authenticated", None)
+    return redirect(url_for("login" if is_login_enabled() else "index"))
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# API Routes
+# API Routes (Web UI)
 # ──────────────────────────────────────────────────────────────────────────────
 
 @app.route("/api/state", methods=["GET"])
 def api_get_state():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     return jsonify(read_state())
-
 
 @app.route("/api/state", methods=["POST"])
 def api_update_state():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
-    
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
     data = request.get_json() or {}
-    
     for key in ["mode", "timer_seconds", "timer_remaining", "timer_running",
                 "timer_limit_seconds", "timer_limit_action",
                 "stopwatch_seconds", "stopwatch_running",
                 "stopwatch_limit_seconds", "stopwatch_limit_action"]:
-        if key in data:
-            state[key] = data[key]
-            
+        if key in data: state[key] = data[key]
     state["timer_last_update"] = time.time()
     state["stopwatch_last_update"] = time.time()
-    
     write_state(state)
     return jsonify(state)
-
 
 @app.route("/api/timer/start", methods=["POST"])
 def api_timer_start():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
-    
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     data = request.get_json() or {}
-    duration = data.get("duration", 60)
-    limit_seconds = data.get("limit_seconds", 0)
-    limit_action = data.get("limit_action", "stop")
-    set_mode = data.get("set_mode", True)
-    
     state = read_state()
-    if set_mode:
-        state["mode"] = "timer"
-    state["timer_seconds"] = duration
-    state["timer_remaining"] = duration
+    if data.get("set_mode", True): state["mode"] = "timer"
+    state["timer_seconds"] = data.get("duration", 60)
+    state["timer_remaining"] = data.get("duration", 60)
     state["timer_running"] = True
-    state["timer_limit_seconds"] = limit_seconds
-    state["timer_limit_action"] = limit_action
+    state["timer_limit_seconds"] = data.get("limit_seconds", 0)
+    state["timer_limit_action"] = data.get("limit_action", "stop")
     state["timer_id"] = time.time()
     state["timer_last_update"] = state["timer_id"]
     write_state(state)
-    
     return jsonify(state)
-
 
 @app.route("/api/timer/pause", methods=["POST"])
 def api_timer_pause():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
-    
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
     state["timer_running"] = False
     write_state(state)
     return jsonify(state)
 
-
 @app.route("/api/timer/resume", methods=["POST"])
 def api_timer_resume():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
-    
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
     state["timer_running"] = True
     state["timer_last_update"] = time.time()
     write_state(state)
     return jsonify(state)
 
-
 @app.route("/api/timer/stop", methods=["POST"])
 def api_timer_stop():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
-    
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
     state["timer_running"] = False
     state["timer_remaining"] = 0
@@ -339,81 +288,59 @@ def api_timer_stop():
     write_state(state)
     return jsonify(state)
 
-
 @app.route("/api/timer/send", methods=["POST"])
 def api_timer_send():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
     state["mode"] = "timer"
     write_state(state)
     return jsonify(state)
 
-
 @app.route("/api/stopwatch/start", methods=["POST"])
 def api_stopwatch_start():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
-    
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     data = request.get_json() or {}
-    limit_seconds = data.get("limit_seconds", 0)
-    limit_action = data.get("limit_action", "stop")
-    set_mode = data.get("set_mode", True)
-    
     state = read_state()
-    if set_mode:
-        state["mode"] = "stopwatch"
+    if data.get("set_mode", True): state["mode"] = "stopwatch"
     state["stopwatch_running"] = True
     state["stopwatch_seconds"] = 0
-    state["stopwatch_limit_seconds"] = limit_seconds
-    state["stopwatch_limit_action"] = limit_action
+    state["stopwatch_limit_seconds"] = data.get("limit_seconds", 0)
+    state["stopwatch_limit_action"] = data.get("limit_action", "stop")
     state["stopwatch_id"] = time.time()
     state["stopwatch_last_update"] = state["stopwatch_id"]
     write_state(state)
     return jsonify(state)
 
-
 @app.route("/api/stopwatch/pause", methods=["POST"])
 def api_stopwatch_pause():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
-    
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
     state["stopwatch_running"] = False
     write_state(state)
     return jsonify(state)
 
-
 @app.route("/api/stopwatch/resume", methods=["POST"])
 def api_stopwatch_resume():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
-    
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
     state["stopwatch_running"] = True
     state["stopwatch_last_update"] = time.time()
     write_state(state)
     return jsonify(state)
 
-
 @app.route("/api/stopwatch/stop", methods=["POST"])
 def api_stopwatch_stop():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
-    
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
     state["stopwatch_running"] = False
     state["stopwatch_seconds"] = 0
     state["stopwatch_id"] = 0
     write_state(state)
     return jsonify(state)
-
 
 @app.route("/api/stopwatch/reset", methods=["POST"])
 def api_stopwatch_reset():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
-    
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
     state["mode"] = "stopwatch"
     state["stopwatch_running"] = False
@@ -422,78 +349,156 @@ def api_stopwatch_reset():
     write_state(state)
     return jsonify(state)
 
-
 @app.route("/api/stopwatch/send", methods=["POST"])
 def api_stopwatch_send():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
     state["mode"] = "stopwatch"
     write_state(state)
     return jsonify(state)
 
-
-@app.route("/api/clock", methods=["GET"])
+@app.route("/api/clock", methods=["GET", "POST"])
 def api_clock():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
-    
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
     state["mode"] = "clock"
     write_state(state)
     return jsonify({"timestamp": time.time()})
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Companion API Routes (Specifically for Bitfocus Companion)
+# ──────────────────────────────────────────────────────────────────────────────
 
-# Admin/Settings API Routes
+@app.route("/api/comp/timer/adj", methods=["POST"])
+def api_comp_timer_adj():
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
+    data = request.get_json() or {}
+    state = read_state()
+    val = state.get("companion_timer", 0)
+    if "add" in data: val += data["add"]
+    if "sub" in data: val -= data["sub"]
+    state["companion_timer"] = max(0, val)
+    write_state(state)
+    return jsonify(state)
+
+@app.route("/api/comp/timer/start", methods=["POST"])
+def api_comp_timer_start():
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
+    state = read_state()
+    dur = state.get("companion_timer", 0)
+    if dur > 0:
+        state["mode"] = "timer"
+        state["timer_seconds"] = dur
+        state["timer_remaining"] = dur
+        state["timer_running"] = True
+        state["timer_id"] = time.time()
+        state["timer_last_update"] = state["timer_id"]
+        write_state(state)
+    return jsonify(state)
+
+@app.route("/api/comp/timer/toggle", methods=["POST"])
+def api_comp_timer_toggle():
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
+    state = read_state()
+    if state["timer_running"]:
+        state["timer_running"] = False
+    elif state["timer_id"] != 0:
+        state["timer_running"] = True
+        state["timer_last_update"] = time.time()
+    write_state(state)
+    return jsonify(state)
+
+@app.route("/api/comp/sw/adj", methods=["POST"])
+def api_comp_sw_adj():
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
+    data = request.get_json() or {}
+    state = read_state()
+    val = state.get("companion_stopwatch", 0)
+    if "add" in data: val += data["add"]
+    if "sub" in data: val -= data["sub"]
+    state["companion_stopwatch"] = max(0, val)
+    write_state(state)
+    return jsonify(state)
+
+@app.route("/api/comp/sw/start", methods=["POST"])
+def api_comp_sw_start():
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
+    state = read_state()
+    state["mode"] = "stopwatch"
+    state["stopwatch_running"] = True
+    state["stopwatch_seconds"] = 0
+    state["stopwatch_limit_seconds"] = state.get("companion_stopwatch", 0)
+    state["stopwatch_id"] = time.time()
+    state["stopwatch_last_update"] = state["stopwatch_id"]
+    write_state(state)
+    return jsonify(state)
+
+@app.route("/api/comp/sw/toggle", methods=["POST"])
+def api_comp_sw_toggle():
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
+    state = read_state()
+    if state["stopwatch_running"]:
+        state["stopwatch_running"] = False
+    elif state["stopwatch_id"] != 0:
+        state["stopwatch_running"] = True
+        state["stopwatch_last_update"] = time.time()
+    write_state(state)
+    return jsonify(state)
+
+@app.route("/api/comp/sw/toggle_action", methods=["POST"])
+def api_comp_sw_toggle_action():
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
+    state = read_state()
+    cur = state.get("stopwatch_limit_action", "stop")
+    if cur == "stop": state["stopwatch_limit_action"] = "blink"
+    elif cur == "blink": state["stopwatch_limit_action"] = "none"
+    else: state["stopwatch_limit_action"] = "stop"
+    write_state(state)
+    return jsonify(state)
+
+@app.route("/api/comp/clock/toggle_fmt", methods=["POST"])
+def api_comp_clock_toggle_fmt():
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
+    config = read_config()
+    config["clock_format"] = "24" if config.get("clock_format", "12") == "12" else "12"
+    write_config(config)
+    return jsonify({"status": "success"})
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Admin/Settings
+# ──────────────────────────────────────────────────────────────────────────────
 
 @app.route("/api/password/change", methods=["POST"])
 def api_password_change():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
-    
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     data = request.get_json() or {}
-    old_pw = data.get("old_password", "")
-    new_pw = data.get("new_password", "")
-    
+    old_pw, new_pw = data.get("old_password", ""), data.get("new_password", "")
     auth = read_auth()
     if not auth["password_hash"] or not check_password_hash(auth["password_hash"], old_pw):
         return jsonify({"error": "Incorrect old password."}), 400
-        
-    if len(new_pw) < 4:
-        return jsonify({"error": "New password must be at least 4 characters."}), 400
-        
+    if len(new_pw) < 4: return jsonify({"error": "New password must be at least 4 characters."}), 400
     auth["password_hash"] = generate_password_hash(new_pw)
     write_auth(auth)
     return jsonify({"status": "success"})
 
-
 @app.route("/api/admin/config", methods=["GET", "POST"])
 def api_admin_config():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
-    
-    if request.method == "GET":
-        return jsonify(read_config())
-    
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
+    if request.method == "GET": return jsonify(read_config())
     data = request.get_json() or {}
     config = read_config()
-    if "login_enabled" in data:
-        config["login_enabled"] = data["login_enabled"]
-    if "clock_format" in data:
-        config["clock_format"] = data["clock_format"]
+    if "login_enabled" in data: config["login_enabled"] = data["login_enabled"]
+    if "clock_format" in data: config["clock_format"] = data["clock_format"]
     write_config(config)
     return jsonify(config)
 
-
 @app.route("/api/admin/reset", methods=["POST"])
 def api_admin_reset():
-    if not is_authenticated():
-        return jsonify({"error": "Unauthorized"}), 401
-    
+    if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     write_state(get_default_state())
     write_auth({"password_hash": None})
     write_config({"login_enabled": True, "clock_format": "12"})
-    
     session.pop("authenticated", None)
     return jsonify({"status": "reset"})
 
@@ -704,7 +709,6 @@ function formatHourMinute(date, format){const h=date.getHours();const m=String(d
 function updateDisplay(){
     fetch('/api/state').then(r=>r.json()).then(state=>{
         
-        // Active Display Badge
         const badge = document.getElementById('displayModeBadge');
         if(badge) {
             badge.textContent = "On Display: " + state.mode;
@@ -715,7 +719,6 @@ function updateDisplay(){
         const format=document.getElementById('clockFormat').value;
         document.getElementById('clockDisplay').textContent=formatHourMinute(now,format);
         
-        // Timer UI
         const timerDisplay = document.getElementById('timerDisplay');
         timerDisplay.textContent = formatMinutesSeconds(state.timer_remaining);
         if (state.timer_limit_action === 'blink' && state.timer_limit_seconds > 0 && state.timer_remaining <= state.timer_limit_seconds && !state.timer_running && state.timer_id !== 0) {
@@ -732,7 +735,6 @@ function updateDisplay(){
             btnTPause.onclick = pauseTimer;
         } else {
             btnTStart.disabled = false;
-            // Use timer_id to determine if it is actively paused vs stopped/cleared
             if(state.timer_id !== 0){
                 btnTPause.textContent = "Resume";
                 btnTPause.onclick = resumeTimer;
@@ -742,7 +744,6 @@ function updateDisplay(){
             }
         }
         
-        // Stopwatch UI
         const stopwatchDisplay = document.getElementById('stopwatchDisplay');
         stopwatchDisplay.textContent = formatMinutesSeconds(state.stopwatch_seconds);
         if (state.stopwatch_limit_action === 'blink' && state.stopwatch_limit_seconds > 0 && state.stopwatch_seconds >= state.stopwatch_limit_seconds) {
@@ -759,7 +760,6 @@ function updateDisplay(){
             btnSPause.onclick = pauseStopwatch;
         } else {
             btnSStart.disabled = false;
-            // Use stopwatch_id to determine if it is actively paused vs stopped/cleared
             if(state.stopwatch_id !== 0){
                 btnSPause.textContent = "Resume";
                 btnSPause.onclick = resumeStopwatch;
