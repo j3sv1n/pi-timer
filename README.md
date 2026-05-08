@@ -284,5 +284,4 @@ pi-timer/
 ├── timer_auth.json        # Password hash
 ├── timer_config.json      # Application settings (login, clock format, companion)
 └── timer_secret.key       # Session secret
-
 ```
