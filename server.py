@@ -11,6 +11,7 @@ import time
 import secrets
 import threading
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 from flask import (Flask, request, jsonify, send_from_directory,
                    render_template_string, abort, session, redirect, url_for)
@@ -57,8 +58,8 @@ def get_default_state():
         "stopwatch_limit_action": "stop",
         "stopwatch_id": 0,
         "stopwatch_last_update": 0,
-        "companion_timer": 0,        # Companion draft timer
-        "companion_stopwatch": 0,    # Companion draft stopwatch
+        "companion_timer": 0,        
+        "companion_stopwatch": 0,    
     }
 
 
@@ -71,7 +72,7 @@ def read_state():
         except Exception:
             pass
             
-    # Calculate live exact time elapsed on-the-fly to serve to the web UI
+    # Calculate live exact time elapsed on-the-fly
     now = time.time()
     
     if state.get("timer_running"):
@@ -98,7 +99,7 @@ def read_state():
                 state["stopwatch_running"] = False
                 state["stopwatch_seconds"] = state["stopwatch_limit_seconds"]
 
-    # --- COMPANION HELPER VARIABLES ---
+    # --- COMPANION SETUP VARIABLES ---
     state["comp_t_h"] = f"{(state.get('companion_timer', 0) // 3600):02d}"
     state["comp_t_m"] = f"{((state.get('companion_timer', 0) % 3600) // 60):02d}"
     state["comp_t_s"] = f"{(state.get('companion_timer', 0) % 60):02d}"
@@ -110,8 +111,44 @@ def read_state():
     state["comp_t_play"] = "PAUSE" if state.get("timer_running") else ("RESUME" if state.get("timer_id") != 0 else "PAUSE")
     state["comp_s_play"] = "PAUSE" if state.get("stopwatch_running") else ("RESUME" if state.get("stopwatch_id") != 0 else "PAUSE")
 
-    state["comp_clk_fmt"] = f"MODE:\\n{read_config().get('clock_format', '12')}H"
+    fmt = read_config().get('clock_format', '12')
+    state["comp_clk_fmt"] = f"MODE:\\n{fmt}H"
     state["comp_sw_limit"] = f"LIMIT:\\n{state.get('stopwatch_limit_action', 'stop').upper()}"
+
+    # --- COMPANION LIVE PREVIEW & FEEDBACK VARIABLES ---
+    mode = state.get("mode", "clock")
+    state["comp_active_mode"] = mode
+    
+    if mode == "clock":
+        dt = datetime.now()
+        h = dt.hour
+        if fmt == "12":
+            h = h % 12 or 12
+        state["comp_live_1"] = f"{h:02d}"
+        state["comp_live_2"] = f"{dt.minute:02d}"
+        state["comp_live_blink"] = "normal"
+        
+    elif mode == "timer":
+        rem = int(state.get("timer_remaining", 0))
+        state["comp_live_1"] = f"{(rem // 60):02d}"
+        state["comp_live_2"] = f"{(rem % 60):02d}"
+        l_sec = state.get("timer_limit_seconds", 0)
+        l_act = state.get("timer_limit_action", "stop")
+        if l_act == "blink" and l_sec > 0 and rem <= l_sec and state.get("timer_id") != 0 and not state.get("timer_running"):
+            state["comp_live_blink"] = "blink"
+        else:
+            state["comp_live_blink"] = "normal"
+            
+    elif mode == "stopwatch":
+        sec = int(state.get("stopwatch_seconds", 0))
+        state["comp_live_1"] = f"{(sec // 60):02d}"
+        state["comp_live_2"] = f"{(sec % 60):02d}"
+        l_sec = state.get("stopwatch_limit_seconds", 0)
+        l_act = state.get("stopwatch_limit_action", "stop")
+        if l_act == "blink" and l_sec > 0 and sec >= l_sec:
+            state["comp_live_blink"] = "blink"
+        else:
+            state["comp_live_blink"] = "normal"
 
     return state
 
@@ -159,13 +196,13 @@ def is_authenticated():
     return session.get("authenticated") is True
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Companion Sync Background Thread (Pushes variables directly to Companion)
+# Companion Sync Background Thread
 # ──────────────────────────────────────────────────────────────────────────────
 
 def companion_sync_loop():
     last_pushed = {}
     while True:
-        time.sleep(0.2) # Check efficiently 5 times a second
+        time.sleep(0.2)
         config = read_config()
         comp_target = config.get("companion_ip", "").strip()
         if not comp_target:
@@ -186,14 +223,17 @@ def companion_sync_loop():
             "comp_s_play": state["comp_s_play"],
             "comp_clk_fmt": state["comp_clk_fmt"],
             "comp_sw_limit": state["comp_sw_limit"],
+            "comp_live_1": state["comp_live_1"],
+            "comp_live_2": state["comp_live_2"],
+            "comp_live_blink": state["comp_live_blink"],
+            "comp_active_mode": state["comp_active_mode"]
         }
         
         for key, val in updates.items():
             if last_pushed.get(key) == val:
-                continue # Only send HTTP request if the value actually changed
+                continue
                 
             url = f"{comp_target}/api/custom-variable/{key}/value"
-            # Companion requires JSON payload with text in double quotes
             data = json.dumps(str(val)).encode('utf-8') 
             req = urllib.request.Request(url, method="POST", data=data)
             req.add_header("Content-Type", "application/json")
@@ -203,7 +243,6 @@ def companion_sync_loop():
             except Exception:
                 pass
 
-# Start the push engine
 threading.Thread(target=companion_sync_loop, daemon=True).start()
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -298,7 +337,8 @@ def api_timer_start():
     if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     data = request.get_json() or {}
     state = read_state()
-    if data.get("set_mode", True): state["mode"] = "timer"
+    # Only set mode if explicitly requested by Web UI
+    if data.get("set_mode", False): state["mode"] = "timer" 
     state["timer_seconds"] = data.get("duration", 60)
     state["timer_remaining"] = data.get("duration", 60)
     state["timer_running"] = True
@@ -349,7 +389,8 @@ def api_stopwatch_start():
     if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     data = request.get_json() or {}
     state = read_state()
-    if data.get("set_mode", True): state["mode"] = "stopwatch"
+    # Only set mode if explicitly requested by Web UI
+    if data.get("set_mode", False): state["mode"] = "stopwatch"
     state["stopwatch_running"] = True
     state["stopwatch_seconds"] = 0
     state["stopwatch_limit_seconds"] = data.get("limit_seconds", 0)
@@ -390,7 +431,6 @@ def api_stopwatch_stop():
 def api_stopwatch_reset():
     if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
-    state["mode"] = "stopwatch"
     state["stopwatch_running"] = False
     state["stopwatch_seconds"] = 0
     state["stopwatch_id"] = 0
@@ -435,7 +475,6 @@ def api_comp_timer_start():
     state = read_state()
     dur = state.get("companion_timer", 0)
     if dur > 0:
-        state["mode"] = "timer"
         state["timer_seconds"] = dur
         state["timer_remaining"] = dur
         state["timer_running"] = True
@@ -448,9 +487,9 @@ def api_comp_timer_start():
 def api_comp_timer_toggle():
     if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
-    if state["timer_running"]:
+    if state.get("timer_running", False):
         state["timer_running"] = False
-    elif state["timer_id"] != 0:
+    elif state.get("timer_id", 0) != 0:
         state["timer_running"] = True
         state["timer_last_update"] = time.time()
     write_state(state)
@@ -472,7 +511,6 @@ def api_comp_sw_adj():
 def api_comp_sw_start():
     if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
-    state["mode"] = "stopwatch"
     state["stopwatch_running"] = True
     state["stopwatch_seconds"] = 0
     state["stopwatch_limit_seconds"] = state.get("companion_stopwatch", 0)
@@ -485,9 +523,9 @@ def api_comp_sw_start():
 def api_comp_sw_toggle():
     if not is_authenticated(): return jsonify({"error": "Unauthorized"}), 401
     state = read_state()
-    if state["stopwatch_running"]:
+    if state.get("stopwatch_running", False):
         state["stopwatch_running"] = False
-    elif state["stopwatch_id"] != 0:
+    elif state.get("stopwatch_id", 0) != 0:
         state["stopwatch_running"] = True
         state["stopwatch_last_update"] = time.time()
     write_state(state)
@@ -1009,7 +1047,6 @@ SETTINGS_HTML = """
 </body>
 </html>
 """
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, debug=False)
