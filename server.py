@@ -789,7 +789,7 @@ input:focus,select:focus{border-color:var(--accent)}
 <div id="stopwatch" class="tab-content"><div class="card"><div class="time-display" id="stopwatchDisplay">00:00</div><div class="control-row"><label for="stopwatchHours">Stopwatch limit (OPTIONAL)</label><div class="time-inputs"><input type="number" id="stopwatchHours" placeholder="HH" min="0" max="99"><input type="number" id="stopwatchMinutes" placeholder="MM" min="0" max="59"><input type="number" id="stopwatchSeconds" placeholder="SS" min="0" max="59"></div></div><div class="control-row"><label for="stopwatchLimitAction">Limit Action</label><select id="stopwatchLimitAction"><option value="stop">Stop at limit</option><option value="blink">Blink at limit</option></select><p class="info-text">Blink means the display background will flash red when the limit is reached.</p></div><div class="button-group"><button type="button" id="btnStopwatchStart" onclick="startStopwatch()">Start</button><button type="button" id="btnStopwatchPause" class="secondary" onclick="pauseStopwatch()">Pause</button><button type="button" class="secondary" onclick="stopStopwatch()">Reset</button></div><button class="send-btn" onclick="sendToDisplay('stopwatch')">Send Stopwatch to Display</button></div></div>
 </main>
 <script>
-const STATE_UPDATE_INTERVAL = 100;
+const STATE_UPDATE_INTERVAL = 200;
 function switchTab(tab){document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('active'));document.getElementById(tab).classList.add('active');document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');updateDisplay();}
 function formatMinutesSeconds(seconds){const m=Math.floor(seconds/60);const s=Math.floor(seconds%60);return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}
 function formatHourMinute(date, format){const h=date.getHours();const m=String(date.getMinutes()).padStart(2,'0');const colon = Math.floor(Date.now()/500) % 2 === 0 ? ':' : ' ';if(format==='12'){const hh=h%12||12;return `${hh}${colon}${m}`;}else{return `${String(h).padStart(2,'0')}${colon}${m}`;}}
@@ -1049,4 +1049,6 @@ SETTINGS_HTML = """
 """
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=False)
+    from waitress import serve
+    serve(app, host="0.0.0.0", port=5001, threads=16)
+    #app.run(host="0.0.0.0", port=5001, debug=False)

@@ -62,7 +62,7 @@ chown "$SERVICE_USER:$SERVICE_USER" "$TMPDIR_CUSTOM"
 
 sudo -u "$SERVICE_USER" TMPDIR="$TMPDIR_CUSTOM" \
   "$VENV_DIR/bin/python" -m pip install --break-system-packages --no-cache-dir \
-  "Flask==2.3.3" "Werkzeug==3.0.0"
+  "Flask==2.3.3" "Werkzeug==3.0.0" "waitress"
 
 rm -rf "$TMPDIR_CUSTOM"
 
